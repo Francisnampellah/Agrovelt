@@ -1,0 +1,71 @@
+ I’ll outline the safest architecture for it so both web and mobile can authenticate consistently without a central login UI.Yes, absolutely possible, and this is the right direction.
+
+What you want is a **token exchange pattern**:
+
+1. Mobile/Web signs in directly with Firebase.
+2. Client gets Firebase ID token.
+3. Client calls your custom backend endpoint (example: `POST /api/auth/exchange`).
+4. Backend verifies Firebase token and checks user domain claim (`globalRole === 'agrovelt'`).
+5. If valid, backend issues **its own API tokens** (access + refresh) for Agrovelt APIs.
+
+Important point: backend should provide **tokens**, not raw “credentials” (never passwords/secrets).
+
+## Recommended design
+
+1. Use Firebase as identity proof only.
+2. Use your backend as authorization issuer for Agrovelt domain.
+3. Keep Agrovelt sub-roles (`ADMIN`, `OWNER`, `STAFF`) in your DB.
+4. Return backend tokens with role + tenant/shop context.
+5. Create refresh token rotation per device/client.
+
+## Why this is best for multiple frontends
+
+1. Web and mobile can authenticate independently.
+2. No need for a single login portal.
+3. Consistent authorization decisions on backend.
+4. You can revoke sessions per device.
+5. You can enforce business rules in one place.
+
+## Secure endpoint contract
+
+`POST /api/auth/exchange`
+Input:
+- Firebase ID token
+- clientType (`web` or `mobile`)
+- deviceId/appVersion (optional but useful)
+
+Backend checks:
+1. Verify Firebase signature and expiry.
+2. Check `globalRole` is Agrovelt.
+3. Upsert/find Agrovelt user in Prisma.
+4. Resolve Agrovelt sub-role and active status.
+5. Issue backend JWT access token (short TTL, e.g. 15m).
+6. Issue opaque refresh token (long TTL, e.g. 7-30d, rotated each refresh).
+
+Output:
+- `accessToken`
+- `refreshToken`
+- `expiresIn`
+- `user` (id, role, shop scope)
+
+## What to avoid
+
+1. Do not trust Firebase claim alone for sub-roles.
+2. Do not return static credentials/passwords.
+3. Do not use same refresh token forever.
+4. Do not skip token revocation/blacklist.
+5. Do not let frontend decide role.
+
+## Extra hardening
+
+1. Add audience/issuer checks on Firebase token.
+2. Bind refresh token to device fingerprint/client type.
+3. Add rate limits on `exchange` and `refresh`.
+4. Log auth events with correlation IDs.
+5. Consider custom claims only for coarse domain (`agrovelt`), keep fine-grained roles in DB.
+
+If you want, I can implement this endpoint flow in your current codebase next:
+1. `POST /api/auth/exchange`
+2. `POST /api/auth/refresh`
+3. device-bound refresh token rotation
+4. middleware updates for mixed Firebase + backend token flow.

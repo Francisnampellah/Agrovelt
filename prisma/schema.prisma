@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  OWNER
+  STAFF
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE
+}
+
+enum InventoryTxnType {
+  PURCHASE
+  SALE
+  ADJUSTMENT
+  RETURN
+}
+
+enum SaleStatus {
+  COMPLETED
+  REFUNDED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  firebaseUid   String?  @unique
+  name          String
+  email         String   @unique
+  passwordHash  String?
+  role          Role
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  shopsOwned    Shop[]   @relation("OwnerShops")
+  staffIn       ShopStaff[]
+
+  auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  token       String   @unique
+  userId      String
+  deviceId    String?
+  clientType  String?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  isRevoked   Boolean  @default(false)
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model TokenBlocklist {
+  id          String   @id @default(uuid())
+  token       String   @unique
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model Shop {
+  id          String   @id @default(uuid())
+  name        String
+  location    String?
+  ownerId     String
+  createdAt   DateTime @default(now())
+
+  owner       User     @relation("OwnerShops", fields: [ownerId], references: [id])
+
+  staff       ShopStaff[]
+  inventories Inventory[]
+  sales       Sale[]
+  purchases   Purchase[]
+  expenses    Expense[]
+  inventoryTransactions InventoryTransaction[]
+}
+
+model ShopStaff {
+  id        String @id @default(uuid())
+  shopId    String
+  userId    String
+  role      String
+
+  shop      Shop   @relation(fields: [shopId], references: [id])
+  user      User   @relation(fields: [userId], references: [id])
+
+  @@unique([shopId, userId])
+}
+
+model Category {
+  id    String   @id @default(uuid())
+  name  String
+  products Product[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  categoryId  String?
+  createdAt   DateTime @default(now())
+
+  category    Category? @relation(fields: [categoryId], references: [id])
+  variants    ProductVariant[]
+}
+
+model ProductVariant {
+  id         String   @id @default(uuid())
+  productId  String
+  name       String
+  sku        String
+  createdAt  DateTime @default(now())
+
+  product    Product  @relation(fields: [productId], references: [id])
+  inventory  Inventory[]
+  inventoryTransactions InventoryTransaction[]
+  purchaseItems PurchaseItem[]
+  saleItems SaleItem[]
+
+  @@unique([sku])
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  shopId      String
+  variantId   String
+  quantity    Int      @default(0)
+  costPrice   Float
+  sellingPrice Float
+  updatedAt   DateTime @updatedAt
+
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@unique([shopId, variantId])
+}
+
+model InventoryTransaction {
+  id          String   @id @default(uuid())
+  shopId      String
+  variantId   String
+  type        InventoryTxnType
+  quantity    Int
+  referenceId String?
+  createdAt   DateTime @default(now())
+
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+model Supplier {
+  id      String @id @default(uuid())
+  name    String
+  contact String?
+
+  purchases Purchase[]
+}
+
+model Purchase {
+  id            String   @id @default(uuid())
+  shopId        String
+  supplierId    String?
+  totalAmount   Float
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  shop          Shop     @relation(fields: [shopId], references: [id])
+  supplier      Supplier? @relation(fields: [supplierId], references: [id])
+
+  items         PurchaseItem[]
+}
+
+model PurchaseItem {
+  id          String @id @default(uuid())
+  purchaseId  String
+  variantId   String
+  quantity    Int
+  costPrice   Float
+
+  purchase    Purchase @relation(fields: [purchaseId], references: [id])
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+model Sale {
+  id          String   @id @default(uuid())
+  shopId      String
+  subtotal    Float
+  discount    Float    @default(0)
+  tax         Float    @default(0)
+  total       Float
+  status      SaleStatus @default(COMPLETED)
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  shop        Shop     @relation(fields: [shopId], references: [id])
+
+  items       SaleItem[]
+  payments    Payment[]
+}
+
+model SaleItem {
+  id          String @id @default(uuid())
+  saleId      String
+  variantId   String
+  quantity    Int
+  price       Float
+
+  sale        Sale @relation(fields: [saleId], references: [id])
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+model Payment {
+  id        String @id @default(uuid())
+  saleId    String
+  amount    Float
+  method    PaymentMethod
+
+  sale      Sale   @relation(fields: [saleId], references: [id])
+}
+
+model Expense {
+  id        String   @id @default(uuid())
+  shopId    String
+  title     String
+  amount    Float
+  category  String?
+  date      DateTime
+
+  shop      Shop     @relation(fields: [shopId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String
+  entity     String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  user       User @relation(fields: [userId], references: [id])
+}
