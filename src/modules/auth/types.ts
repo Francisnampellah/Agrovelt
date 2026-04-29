@@ -11,6 +11,7 @@ export interface RegisterRequest {
   email: string
   password: string
   role?: Role
+  organizationId: string
 }
 
 export interface ExchangeRequest {

@@ -5,7 +5,7 @@ export class ShopService {
   constructor(private prisma: PrismaClient) {}
 
   async createShop(data: CreateShopRequest): Promise<ShopResponse> {
-    const { name, location, ownerId } = data
+    const { name, location, ownerId, parentId, organizationId } = data
 
     // Check if owner exists
     const owner = await this.prisma.user.findUnique({
@@ -16,13 +16,26 @@ export class ShopService {
       throw new Error('Owner not found')
     }
 
-    const shop = await this.prisma.shop.create({
-      data: {
-        name,
-        location,
-        ownerId
+    // Check if parent shop exists if parentId is provided
+    if (parentId) {
+      const parent = await this.prisma.shop.findUnique({
+        where: { id: parentId }
+      })
+      if (!parent) {
+        throw new Error('Parent shop not found')
       }
-    })
+    }
+
+    const createData: any = {
+      name,
+      type: parentId ? 'BRANCH' : 'MAIN',
+      organization: { connect: { id: organizationId } },
+      owner: { connect: { id: ownerId } },
+      location: location ?? null,
+      ...(parentId && { parent: { connect: { id: parentId } } })
+    }
+
+    const shop = await this.prisma.shop.create({ data: createData })
 
     return shop
   }
@@ -44,6 +57,8 @@ export class ShopService {
             email: true
           }
         },
+        parent: true,
+        branches: true,
         staff: {
           include: {
             user: {
@@ -62,7 +77,7 @@ export class ShopService {
       throw new Error('Shop not found')
     }
 
-    return shop as any // Using any for now due to include
+    return shop as any
   }
 
   async updateShop(id: string, data: UpdateShopRequest): Promise<ShopResponse> {

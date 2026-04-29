@@ -19,17 +19,9 @@ export class FirebaseAuthService {
         where: { firebaseUid },
       })
 
-      // If user doesn't exist, create them
+      // If user doesn't exist, require provisioning through organization
       if (!user) {
-        user = await this.prisma.user.create({
-          data: {
-            firebaseUid,
-            email: email!,
-            name,
-            role: 'STAFF', // Default role for new users
-            isActive: true,
-          },
-        })
+        throw new Error('User not provisioned. Please register through the organization.')
       }
 
       return {

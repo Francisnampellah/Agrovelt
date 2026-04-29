@@ -11,6 +11,11 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://johndoe:randompassword@db:5432/mydb?schema=public
+      - ADMIN_NAME=nampellah
+      - ADMIN_EMAIL=bnampellah1@gmail.com
+      - ADMIN_PASSWORD=Admin123!
+      - ADMIN_ORG_NAME=nampellah
+    command: sh -c "npx prisma db push && npm run prisma:seed && npx ts-node src/index.ts"
     depends_on:
       db:
         condition: service_healthy
@@ -40,7 +45,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: agrovelt_prisma
-    command: npx prisma studio --browser none
+    command: npx prisma studio --port 5555 --browser none
     ports:
       - "5555:5555"
     environment:

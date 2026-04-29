@@ -11,6 +11,7 @@ import { createUserRoutes } from './routes/users'
 import { createShopRoutes } from './routes/shops'
 import { createProductRoutes } from './routes/products'
 import { createInventoryRoutes } from './routes/inventory'
+import { createOrganizationRoutes } from './routes/organizations'
 import { createFirebaseRoutes } from './routes/firebase'
 
 const app = express()
@@ -36,6 +37,7 @@ app.use('/api', createUserRoutes(prisma))
 app.use('/api', createShopRoutes(prisma))
 app.use('/api', createProductRoutes(prisma))
 app.use('/api', createInventoryRoutes(prisma))
+app.use('/api', createOrganizationRoutes(prisma))
 
 // Start server
 app.listen(PORT, () => {

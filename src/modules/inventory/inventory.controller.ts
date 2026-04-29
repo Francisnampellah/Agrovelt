@@ -47,7 +47,7 @@ export class InventoryController {
 
   getByShop = async (req: Request, res: Response) => {
     try {
-      const { shopId } = req.params
+      const shopId = String(req.params.shopId)
       const inventory = await this.inventoryService.getInventoryByShop(shopId)
       res.json({ data: inventory })
     } catch (error: any) {
@@ -57,7 +57,7 @@ export class InventoryController {
 
   getTransactionsByShop = async (req: Request, res: Response) => {
     try {
-      const { shopId } = req.params
+      const shopId = String(req.params.shopId)
       const transactions = await this.inventoryService.getTransactionsByShop(shopId)
       res.json({ data: transactions })
     } catch (error: any) {

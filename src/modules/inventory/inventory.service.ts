@@ -5,7 +5,7 @@ export class InventoryService {
   constructor(private prisma: PrismaClient) {}
 
   async updateInventory(data: UpdateInventoryRequest) {
-    const { shopId, variantId, quantity, costPrice, sellingPrice } = data
+    const { shopId, variantId, batchNumber = 'DEFAULT', expiryDate, quantity, costPrice, sellingPrice } = data
 
     // Check if shop exists
     const shop = await this.prisma.shop.findUnique({ where: { id: shopId } })
@@ -17,31 +17,34 @@ export class InventoryService {
 
     return this.prisma.inventory.upsert({
       where: {
-        shopId_variantId: { shopId, variantId }
+        shopId_variantId_batchNumber: { shopId, variantId, batchNumber }
       },
       update: {
         quantity,
         costPrice,
-        sellingPrice
+        sellingPrice,
+        ...(expiryDate && { expiryDate: new Date(expiryDate) })
       },
       create: {
         shopId,
         variantId,
+        batchNumber,
         quantity,
         costPrice,
-        sellingPrice
+        sellingPrice,
+        ...(expiryDate && { expiryDate: new Date(expiryDate) })
       }
     })
   }
 
   async adjustInventory(data: AdjustInventoryRequest) {
-    const { shopId, variantId, change, type, referenceId } = data
+    const { shopId, variantId, batchNumber = 'DEFAULT', change, type, referenceId } = data
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Update Inventory Level
       const inventory = await tx.inventory.upsert({
         where: {
-          shopId_variantId: { shopId, variantId }
+          shopId_variantId_batchNumber: { shopId, variantId, batchNumber }
         },
         update: {
           quantity: { increment: change }
@@ -49,6 +52,7 @@ export class InventoryService {
         create: {
           shopId,
           variantId,
+          batchNumber,
           quantity: change,
           costPrice: 0, // Should be updated properly through purchases
           sellingPrice: 0
@@ -64,9 +68,10 @@ export class InventoryService {
         data: {
           shopId,
           variantId,
+          batchNumber,
           type,
           quantity: change,
-          referenceId
+          referenceId: referenceId ?? null
         }
       })
 

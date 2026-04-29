@@ -10,6 +10,7 @@ export class AuthController {
   registerValidation = [
     body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+    body('organizationId').isUUID().withMessage('Valid organization ID required'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
       .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)
       .withMessage('Password must contain at least one uppercase letter, one lowercase letter, one number and one special character'),

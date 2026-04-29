@@ -12,7 +12,12 @@ export class ProductController {
   productValidation = [
     body('name').trim().notEmpty().withMessage('Product name is required'),
     body('description').optional().trim(),
-    body('categoryId').optional().isUUID().withMessage('Invalid category ID')
+    body('categoryId').optional().isUUID().withMessage('Invalid category ID'),
+    body('organizationId').isUUID().withMessage('Valid organization ID is required'),
+    body('unit').optional().isString(),
+    body('dosageInfo').optional().isString(),
+    body('manufacturer').optional().isString(),
+    body('isRestricted').optional().isBoolean()
   ]
 
   variantValidation = [
@@ -65,7 +70,7 @@ export class ProductController {
 
   getProductById = async (req: Request, res: Response) => {
     try {
-      const product = await this.productService.getProductById(req.params.id)
+      const product = await this.productService.getProductById(String(req.params.id))
       res.json({ data: product })
     } catch (error: any) {
       const status = error.message === 'Product not found' ? 404 : 400

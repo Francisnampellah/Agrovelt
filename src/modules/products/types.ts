@@ -6,6 +6,11 @@ export interface CreateProductRequest {
   name: string
   description?: string
   categoryId?: string
+  organizationId: string
+  unit?: string
+  dosageInfo?: string
+  manufacturer?: string
+  isRestricted?: boolean
 }
 
 export interface CreateProductVariantRequest {

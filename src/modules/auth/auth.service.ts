@@ -17,7 +17,7 @@ export class AuthService {
   }
 
   async register(data: RegisterRequest): Promise<AuthResponse> {
-    const { name, email, password, role = Role.STAFF } = data
+    const { name, email, password, role = Role.STAFF, organizationId } = data
 
     // Check if user already exists
     const existingUser = await this.prisma.user.findUnique({
@@ -28,17 +28,26 @@ export class AuthService {
       throw new Error('User already exists with this email')
     }
 
+    // Check if organization exists
+    const org = await this.prisma.organization.findUnique({
+       where: { id: organizationId }
+    })
+    if (!org) {
+       throw new Error('Organization not found')
+    }
+
     // Hash password
     const saltRounds = 12
     const passwordHash = await bcrypt.hash(password, saltRounds)
 
-    // Create user
+    // Create user (connect to existing organization)
     const user = await this.prisma.user.create({
       data: {
         name,
         email,
         passwordHash,
-        role
+        role,
+        organization: { connect: { id: organizationId } }
       },
       select: {
         id: true,
@@ -160,19 +169,9 @@ export class AuthService {
       })
 
       if (!user) {
-        user = await this.prisma.user.create({
-          data: {
-            email,
-            firebaseUid: uid,
-            name: fbName || email.split('@')[0],
-            role: 'STAFF',
-            isActive: true
-          },
-          include: {
-            shopsOwned: { select: { id: true } },
-            staffIn: { select: { shopId: true } }
-          }
-        })
+        // Do not auto-provision users without organization context.
+        // Require that users are created/assigned to an organization beforehand.
+        throw new Error('User not provisioned. Please register through the organization.')
       } else if (!user.firebaseUid) {
         user = await this.prisma.user.update({
           where: { id: user.id },

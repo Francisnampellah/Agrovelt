@@ -11,7 +11,9 @@ export class ShopController {
     body('name').trim().notEmpty().withMessage('Shop name is required')
       .isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
     body('location').optional().trim().isLength({ max: 255 }).withMessage('Location too long'),
-    body('ownerId').notEmpty().isUUID().withMessage('Valid owner ID is required')
+    body('ownerId').notEmpty().isUUID().withMessage('Valid owner ID is required'),
+    body('organizationId').notEmpty().isUUID().withMessage('Valid organization ID is required'),
+    body('parentId').optional().isUUID().withMessage('Valid parent shop ID is required')
   ]
 
   updateShopValidation = [
@@ -49,7 +51,7 @@ export class ShopController {
 
   getById = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params
+      const id = String(req.params.id)
       const shop = await this.shopService.getShopById(id)
       res.json({ data: shop })
     } catch (error: any) {
@@ -65,7 +67,7 @@ export class ShopController {
         return res.status(400).json({ errors: errors.array() })
       }
 
-      const { id } = req.params
+      const id = String(req.params.id)
       const data: UpdateShopRequest = req.body
       const shop = await this.shopService.updateShop(id, data)
 
@@ -81,7 +83,7 @@ export class ShopController {
 
   delete = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params
+      const id = String(req.params.id)
       await this.shopService.deleteShop(id)
       res.json({ message: 'Shop deleted successfully' })
     } catch (error: any) {
@@ -92,7 +94,7 @@ export class ShopController {
 
   getByOwner = async (req: Request, res: Response) => {
     try {
-      const { ownerId } = req.params
+      const ownerId = String(req.params.ownerId)
       const shops = await this.shopService.getShopsByOwner(ownerId)
       res.json({ data: shops })
     } catch (error: any) {
