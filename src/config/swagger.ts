@@ -28,6 +28,10 @@ export function getSwaggerConfig(port: number | string) {
         },
       ],
     },
-    apis: ['./src/routes/*.ts', './src/modules/auth/*.ts'],
+    apis: [
+      './src/routes/*.ts',
+      './src/modules/**/*.ts',
+      './src/modules/**/*.swagger.ts'
+    ],
   }
 }

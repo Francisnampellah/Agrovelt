@@ -14,3 +14,4 @@ export function createOrganizationModule(prisma: PrismaClient) {
 
 export { OrganizationService, OrganizationController }
 export * from './types'
+export * from './organization.swagger'

@@ -3,7 +3,7 @@ import swaggerUi from 'swagger-ui-express'
 import swaggerJsdoc from 'swagger-jsdoc'
 import { prisma } from './config/database'
 import { getSwaggerConfig } from './config/swagger'
-import { AuthMiddleware } from './modules/auth'
+import { AuthService, AuthMiddleware } from './modules/auth'
 import { createHealthRoutes } from './routes/health'
 import { createAuthRoutes } from './routes/auth'
 import { createAdminRoutes } from './routes/admin'
@@ -25,8 +25,25 @@ const swaggerSpec = swaggerJsdoc(getSwaggerConfig(PORT))
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
 // Global auth checker
-const authMiddleware = new AuthMiddleware(undefined as any)
-app.use(authMiddleware.globalAuthChecker)
+const authService = new AuthService(prisma)
+const authMiddleware = new AuthMiddleware(authService)
+app.use((req, res, next) => {
+  // Hardcoded check to bypass auth for public routes because req.path might be prefixed
+  const publicPaths = [
+    '/api/auth/register',
+    '/api/auth/login',
+    '/api/auth/exchange',
+    '/api/auth/refresh-token',
+    '/health',
+    '/api-docs'
+  ]
+  
+  if (publicPaths.some(p => req.path.startsWith(p))) {
+    return next()
+  }
+  
+  authMiddleware.globalAuthChecker(req, res, next)
+})
 
 // Routes
 app.use('/', createHealthRoutes(prisma))

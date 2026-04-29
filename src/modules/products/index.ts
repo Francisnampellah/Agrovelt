@@ -18,3 +18,4 @@ export {
 }
 
 export * from './types'
+export * from './products.swagger'
