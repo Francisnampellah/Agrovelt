@@ -1,6 +1,6 @@
 import path from 'path'
 import fs from 'fs'
-import multer from 'multer'
+import multer, { FileFilterCallback } from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 
 // Define upload directory
@@ -13,10 +13,10 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 // Configure multer storage
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (req: any, file: any, cb: (error: Error | null, destination: string) => void) => {
     cb(null, UPLOAD_DIR)
   },
-  filename: (req, file, cb) => {
+  filename: (req: any, file: any, cb: (error: Error | null, filename: string) => void) => {
     const ext = path.extname(file.originalname)
     const name = path.basename(file.originalname, ext)
     const filename = `${name}-${uuidv4()}${ext}`
@@ -25,7 +25,7 @@ const storage = multer.diskStorage({
 })
 
 // File filter for images only
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (req: any, file: any, cb: FileFilterCallback) => {
   const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true)
