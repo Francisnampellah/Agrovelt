@@ -28,26 +28,36 @@ export class AuthService {
       throw new Error('User already exists with this email')
     }
 
-    // Check if organization exists
-    const org = await this.prisma.organization.findUnique({
-       where: { id: organizationId }
-    })
-    if (!org) {
-       throw new Error('Organization not found')
+    // Role-specific validation
+    if (role === Role.SUPER_ADMIN) {
+      if (organizationId) {
+        throw new Error('SUPER_ADMIN cannot be associated with an organization')
+      }
+    } else {
+      if (!organizationId) {
+        throw new Error('Organization ID is required for non-SUPER_ADMIN roles')
+      }
+      // Check if organization exists
+      const org = await this.prisma.organization.findUnique({
+        where: { id: organizationId }
+      })
+      if (!org) {
+        throw new Error('Organization not found')
+      }
     }
 
     // Hash password
     const saltRounds = 12
     const passwordHash = await bcrypt.hash(password, saltRounds)
 
-    // Create user (connect to existing organization)
+    // Create user
     const user = await this.prisma.user.create({
       data: {
         name,
         email,
         passwordHash,
         role,
-        organization: { connect: { id: organizationId } }
+        ...(organizationId ? { organization: { connect: { id: organizationId } } } : {})
       },
       select: {
         id: true,

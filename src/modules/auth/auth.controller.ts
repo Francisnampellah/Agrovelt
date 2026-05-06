@@ -10,11 +10,16 @@ export class AuthController {
   registerValidation = [
     body('name').trim().isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
-    body('organizationId').isUUID().withMessage('Valid organization ID required'),
+    body('organizationId').custom((value, { req }) => {
+      if (req.body.role !== 'SUPER_ADMIN' && !value) {
+        throw new Error('Organization ID is required for non-SUPER_ADMIN roles')
+      }
+      return true
+    }).optional({ nullable: true }).isUUID().withMessage('Valid organization ID required if provided'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
       .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)
       .withMessage('Password must contain at least one uppercase letter, one lowercase letter, one number and one special character'),
-    body('role').optional().isIn(['ADMIN', 'OWNER', 'STAFF']).withMessage('Invalid role')
+    body('role').optional().isIn(['SUPER_ADMIN', 'ADMIN', 'OWNER', 'STAFF']).withMessage('Invalid role')
   ]
 
   loginValidation = [

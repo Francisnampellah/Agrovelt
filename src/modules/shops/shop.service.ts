@@ -40,8 +40,9 @@ export class ShopService {
     return shop
   }
 
-  async getAllShops(): Promise<ShopResponse[]> {
+  async getAllShops(organizationId?: string): Promise<ShopResponse[]> {
     return this.prisma.shop.findMany({
+      where: organizationId ? { organizationId } : {},
       orderBy: { createdAt: 'desc' }
     })
   }

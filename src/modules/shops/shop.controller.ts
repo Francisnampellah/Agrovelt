@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { body, validationResult } from 'express-validator'
 import { ShopService } from './shop.service'
 import { CreateShopRequest, UpdateShopRequest } from './types'
+import { AuthenticatedRequest } from '../auth/types'
 
 export class ShopController {
   constructor(private shopService: ShopService) {}
@@ -42,7 +43,25 @@ export class ShopController {
 
   getAll = async (req: Request, res: Response) => {
     try {
-      const shops = await this.shopService.getAllShops()
+      const authReq = req as AuthenticatedRequest
+      const user = authReq.user
+      
+      // If NOT SUPER_ADMIN, we might want to filter by organizationId
+      // However, we need to know the organizationId of the user.
+      // Let's assume for now that if they are NOT SUPER_ADMIN, 
+      // they should only see shops from their organization.
+      
+      let organizationId: string | undefined
+      
+      if (user && user.role !== 'SUPER_ADMIN') {
+        const fullUser = await (this.shopService as any).prisma.user.findUnique({
+          where: { id: user.userId },
+          select: { organizationId: true }
+        })
+        organizationId = fullUser?.organizationId
+      }
+
+      const shops = await this.shopService.getAllShops(organizationId)
       res.json({ data: shops })
     } catch (error: any) {
       res.status(500).json({ error: error.message })

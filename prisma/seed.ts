@@ -44,6 +44,26 @@ async function main() {
   })
 
   console.log(`Admin user ready: ${admin.email}`)
+
+  // Add SUPER_ADMIN users
+  const superAdmin1 = await prisma.user.upsert({
+    where: { email: 'shokokimera@gmail.com' },
+    update: {
+      name: 'Shoko',
+      role: Role.SUPER_ADMIN,
+      isActive: true,
+      passwordHash: await bcrypt.hash('Shoko@2026', 12)
+    },
+    create: {
+      name: 'Shoko',
+      email: 'shokokimera@gmail.com',
+      passwordHash: await bcrypt.hash('Shoko@2026', 12),
+      role: Role.SUPER_ADMIN,
+      isActive: true
+    }
+  })
+
+  console.log(`Super Admin user ready: ${superAdmin1.email}`)
 }
 
 main()

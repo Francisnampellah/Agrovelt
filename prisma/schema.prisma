@@ -12,6 +12,7 @@ generator client {
 // ------------------------------------------------------
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   OWNER
   STAFF
@@ -70,15 +71,15 @@ model Organization {
 model User {
   id             String   @id @default(uuid())
   firebaseUid    String?  @unique
-  organizationId String // User must belong to an organization
+  organizationId String? // Optional because SUPER_ADMIN doesn't belong to any org
   name           String
   email          String   @unique
   passwordHash   String?
-  role           Role // OWNER, ADMIN, STAFF
+  role           Role // SUPER_ADMIN, OWNER, ADMIN, STAFF
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
   // Shops owned by this user (owner relationship)
   shopsOwned    Shop[]
   staffIn       ShopStaff[]

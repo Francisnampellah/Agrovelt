@@ -9,10 +9,10 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
   const authMiddleware = new AuthMiddleware(new AuthService(prisma))
   const { organizationController } = createOrganizationModule(prisma)
 
-  router.post('/organizations', authMiddleware.authenticate, organizationController.createValidation, organizationController.create)
-  router.get('/organizations', authMiddleware.authenticate, organizationController.getAll)
-  router.get('/organizations/:id', authMiddleware.authenticate, organizationController.getById)
-  router.put('/organizations/:id', authMiddleware.authenticate, organizationController.updateValidation, organizationController.update)
+  router.post('/organizations', authMiddleware.authenticate, authMiddleware.authorize('SUPER_ADMIN'), organizationController.createValidation, organizationController.create)
+  router.get('/organizations', authMiddleware.authenticate, authMiddleware.authorize('SUPER_ADMIN'), organizationController.getAll)
+  router.get('/organizations/:id', authMiddleware.authenticate, authMiddleware.authorize('SUPER_ADMIN'), organizationController.getById)
+  router.put('/organizations/:id', authMiddleware.authenticate, authMiddleware.authorize('SUPER_ADMIN'), organizationController.updateValidation, organizationController.update)
 
   return router
 }
