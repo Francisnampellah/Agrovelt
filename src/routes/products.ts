@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { AuthMiddleware, AuthService } from '../modules/auth'
 import { createProductModule } from '../modules/products'
+import { uploadProductImage } from '../utils/fileUpload'
 
 const router = Router()
 
@@ -14,13 +15,31 @@ export function createProductRoutes(prisma: PrismaClient) {
  * @swagger
  * /api/categories:
  *   get:
- *     summary: Get all categories
+ *     summary: Get all product categories
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of categories
+ *         description: List of all categories
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id: { type: string, format: uuid }
+ *                       name: { type: string }
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/categories', authMiddleware.authenticate, productController.getAllCategories)
 
@@ -28,7 +47,7 @@ router.get('/categories', authMiddleware.authenticate, productController.getAllC
  * @swagger
  * /api/categories:
  *   post:
- *     summary: Create a new category
+ *     summary: Create a new product category
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -40,10 +59,29 @@ router.get('/categories', authMiddleware.authenticate, productController.getAllC
  *             type: object
  *             required: [name]
  *             properties:
- *               name: { type: string }
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 example: Fertilizers
  *     responses:
  *       201:
- *         description: Category created
+ *         description: Category created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: string, format: uuid }
+ *                     name: { type: string }
+ *       400:
+ *         description: Invalid input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/categories', authMiddleware.authenticate, productController.categoryValidation, productController.createCategory)
 
@@ -55,9 +93,27 @@ router.post('/categories', authMiddleware.authenticate, productController.catego
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
+ *     description: |
+ *       Retrieve all products. Organization users see only their organization's products.
+ *       SUPER_ADMIN users see all products.
  *     responses:
  *       200:
  *         description: List of products
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/products', authMiddleware.authenticate, productController.getAllProducts)
 
@@ -73,10 +129,24 @@ router.get('/products', authMiddleware.authenticate, productController.getAllPro
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
+ *         schema: { type: string, format: uuid }
+ *         description: Product UUID
  *     responses:
  *       200:
- *         description: Product details
+ *         description: Product details including variants and category
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/Product'
+ *       404:
+ *         description: Product not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get('/products/:id', authMiddleware.authenticate, productController.getProductById)
 
@@ -88,22 +158,159 @@ router.get('/products/:id', authMiddleware.authenticate, productController.getPr
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
+ *     description: |
+ *       Create a new product. Can optionally include an image in multipart/form-data.
+ *       Authenticated user must belong to the specified organization.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name]
+ *             required: [name, organizationId]
  *             properties:
- *               name: { type: string }
- *               description: { type: string }
- *               categoryId: { type: string }
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 example: Potassium Fertilizer
+ *               description:
+ *                 type: string
+ *                 nullable: true
+ *                 example: High quality NPK fertilizer for agriculture
+ *               organizationId:
+ *                 type: string
+ *                 format: uuid
+ *                 example: 123e4567-e89b-12d3-a456-426614174000
+ *               categoryId:
+ *                 type: string
+ *                 format: uuid
+ *                 nullable: true
+ *               unit:
+ *                 type: string
+ *                 nullable: true
+ *                 example: kg
+ *               dosageInfo:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Dosage information for drugs/pesticides
+ *               manufacturer:
+ *                 type: string
+ *                 nullable: true
+ *                 example: ABC Chemicals Ltd
+ *               isRestricted:
+ *                 type: boolean
+ *                 default: false
+ *                 description: Flag for regulated chemicals
  *     responses:
  *       201:
- *         description: Product created
+ *         description: Product created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/Product'
+ *       400:
+ *         description: Invalid input or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/products', authMiddleware.authenticate, productController.productValidation, productController.createProduct)
+
+/**
+ * @swagger
+ * /api/products/{id}/image:
+ *   post:
+ *     summary: Upload or update product image
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *         description: Product UUID
+ *     description: |
+ *       Upload an image for a product. Supports JPEG, PNG, GIF, and WebP formats.
+ *       Maximum file size: 5MB. Replaces existing image if present.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [image]
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Image file (JPEG, PNG, GIF, or WebP)
+ *     responses:
+ *       200:
+ *         description: Image uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Product image uploaded successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/Product'
+ *       400:
+ *         description: Invalid file format or size exceeds limit
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Product not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/products/:id/image', authMiddleware.authenticate, uploadProductImage.single('image'), productController.uploadProductImage)
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   delete:
+ *     summary: Delete a product
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *         description: Product UUID
+ *     description: Delete a product and its associated image file from storage.
+ *     responses:
+ *       200:
+ *         description: Product deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Product deleted successfully
+ *       404:
+ *         description: Product not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.delete('/products/:id', authMiddleware.authenticate, productController.deleteProduct)
 
 /**
  * @swagger
@@ -113,6 +320,9 @@ router.post('/products', authMiddleware.authenticate, productController.productV
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
+ *     description: |
+ *       Create a product variant (size/package option).
+ *       SKU must be globally unique across the system.
  *     requestBody:
  *       required: true
  *       content:
@@ -121,12 +331,41 @@ router.post('/products', authMiddleware.authenticate, productController.productV
  *             type: object
  *             required: [productId, name, sku]
  *             properties:
- *               productId: { type: string }
- *               name: { type: string }
- *               sku: { type: string }
+ *               productId:
+ *                 type: string
+ *                 format: uuid
+ *                 example: 123e4567-e89b-12d3-a456-426614174000
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 example: 1kg Bag
+ *               sku:
+ *                 type: string
+ *                 minLength: 1
+ *                 description: Stock Keeping Unit - must be unique globally
+ *                 example: SKU-001-1KG
  *     responses:
  *       201:
- *         description: Variant created
+ *         description: Variant created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: string, format: uuid }
+ *                     productId: { type: string, format: uuid }
+ *                     name: { type: string }
+ *                     sku: { type: string }
+ *                     createdAt: { type: string, format: date-time }
+ *       400:
+ *         description: Invalid input or SKU already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post('/variants', authMiddleware.authenticate, productController.variantValidation, productController.createVariant)
 

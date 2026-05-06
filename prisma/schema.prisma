@@ -182,6 +182,11 @@ model Product {
   manufacturer String?
   isRestricted Boolean @default(false) // e.g. regulated chemicals
 
+  // Image handling
+  imageUrl     String? // URL to access the image
+  imagePath    String? // File path in volume
+  imageMimeType String? // e.g., image/jpeg, image/png
+
   createdAt DateTime @default(now())
 
   organization Organization     @relation(fields: [organizationId], references: [id])

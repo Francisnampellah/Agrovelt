@@ -11,6 +11,9 @@ export interface CreateProductRequest {
   dosageInfo?: string
   manufacturer?: string
   isRestricted?: boolean
+  imageUrl?: string
+  imagePath?: string
+  imageMimeType?: string
 }
 
 export interface CreateProductVariantRequest {

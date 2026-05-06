@@ -1,4 +1,5 @@
 import express from 'express'
+import path from 'path'
 import swaggerUi from 'swagger-ui-express'
 import swaggerJsdoc from 'swagger-jsdoc'
 import { prisma } from './config/database'
@@ -20,6 +21,9 @@ const PORT = process.env.PORT || 4000
 // Middleware
 app.use(express.json())
 
+// Serve static files for product images
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+
 // Swagger
 const swaggerSpec = swaggerJsdoc(getSwaggerConfig(PORT))
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
@@ -35,7 +39,8 @@ app.use((req, res, next) => {
     '/api/auth/exchange',
     '/api/auth/refresh-token',
     '/health',
-    '/api-docs'
+    '/api-docs',
+    '/uploads' // Allow access to uploaded images without authentication
   ]
   
   if (publicPaths.some(p => req.path.startsWith(p))) {
