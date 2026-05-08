@@ -1,9 +1,15 @@
 import { Request, Response } from 'express'
-import { body, validationResult } from 'express-validator'
+import { body, validationResult, query } from 'express-validator'
 import { ProductService } from './products.service'
+import { BulkProductService } from './bulk-products.service'
+import { parseExcelFile } from '../../utils/excelParser'
+import { generateProductTemplate, saveTemplate } from '../../utils/excelTemplateGenerator'
 
 export class ProductController {
-  constructor(private productService: ProductService) {}
+  constructor(
+    private productService: ProductService,
+    private bulkProductService: BulkProductService
+  ) {}
 
   categoryValidation = [
     body('name').trim().notEmpty().withMessage('Category name is required')
@@ -145,6 +151,53 @@ export class ProductController {
       res.status(201).json({ data: variant })
     } catch (error: any) {
       res.status(400).json({ error: error.message })
+    }
+  }
+
+  bulkImportProducts = async (req: Request, res: Response) => {
+    try {
+      if (!(req as any).file) {
+        return res.status(400).json({ error: 'No Excel file provided' })
+      }
+
+      const dryRun = String(req.query.dryRun) === 'true'
+      const organizationId = (req as any).user?.organizationId
+      
+      if (!organizationId) {
+        return res.status(401).json({ error: 'Organization ID is required' })
+      }
+
+      const rows = parseExcelFile((req as any).file.path)
+      
+      // Clean up uploaded file
+      const fs = await import('fs').then(m => m.promises)
+      await fs.unlink((req as any).file.path).catch(() => {})
+
+      const result = await this.bulkProductService.bulkImportProducts(rows, organizationId, dryRun)
+      
+      const statusCode = result.success ? 200 : 400
+      res.status(statusCode).json(result)
+    } catch (error: any) {
+      // Clean up file on error
+      if ((req as any).file) {
+        const fs = await import('fs').then(m => m.promises)
+        await fs.unlink((req as any).file.path).catch(() => {})
+      }
+      res.status(400).json({ error: error.message })
+    }
+  }
+
+  downloadProductTemplate = async (req: Request, res: Response) => {
+    try {
+      const categories = await this.productService.getCategoryNames()
+      const workbook = await generateProductTemplate(categories)
+      const filePath = await saveTemplate(workbook, 'products_template.xlsx')
+      
+      res.download(filePath, 'products_template.xlsx', (err) => {
+        if (err) console.error('Download error:', err)
+      })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
     }
   }
 }

@@ -103,4 +103,77 @@
  *     responses:
  *       200:
  *         description: List of inventory transactions
+ *
+ * /api/inventory/bulk/update:
+ *   post:
+ *     tags: [Inventory]
+ *     summary: Bulk update inventory from Excel file
+ *     description: |
+ *       Upload an Excel file (.xlsx) with inventory update data.
+ *       Supports dry-run mode to validate without persisting.
+ *       
+ *       Expected columns: shopId, variantId, batchNumber, quantity, costPrice, expiryDate
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: dryRun
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Validate without updating (true for dry-run)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx)
+ *     responses:
+ *       200:
+ *         description: Bulk update result
+ *       400:
+ *         description: Invalid file or validation errors
+ *
+ * /api/inventory/bulk/adjust:
+ *   post:
+ *     tags: [Inventory]
+ *     summary: Bulk adjust inventory from Excel file
+ *     description: |
+ *       Upload an Excel file (.xlsx) with inventory adjustment data.
+ *       Supports dry-run mode to validate without persisting.
+ *       
+ *       Expected columns: shopId, variantId, batchNumber, change, type, referenceId, costPrice
+ *       Type must be one of: PURCHASE, SALE, ADJUSTMENT, RETURN
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: dryRun
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Validate without adjusting (true for dry-run)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx)
+ *     responses:
+ *       200:
+ *         description: Bulk adjust result
+ *       400:
+ *         description: Invalid file or validation errors
  */

@@ -16,6 +16,14 @@ export class ProductService {
     })
   }
 
+  async getCategoryNames(): Promise<string[]> {
+    const categories = await this.prisma.category.findMany({
+      select: { name: true },
+      orderBy: { name: 'asc' }
+    })
+    return categories.map(cat => cat.name)
+  }
+
   // Product Methods
   async createProduct(data: CreateProductRequest, imagePath?: string) {
     if (data.categoryId) {

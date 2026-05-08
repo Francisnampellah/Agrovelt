@@ -116,4 +116,69 @@
  *     responses:
  *       201:
  *         description: Variant created
+ *
+ * /api/products/bulk/import:
+ *   post:
+ *     tags: [Products]
+ *     summary: Bulk import products from Excel file
+ *     description: |
+ *       Upload an Excel file (.xlsx) with product data for bulk import.
+ *       Supports dry-run mode to validate without persisting.
+ *       
+ *       Expected columns: name, description, categoryName, organizationId, unit, dosageInfo, manufacturer, isRestricted
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: dryRun
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Validate without importing (true for dry-run)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx)
+ *     responses:
+ *       200:
+ *         description: Bulk import result with success/failure details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 totalRows:
+ *                   type: integer
+ *                 successCount:
+ *                   type: integer
+ *                 failureCount:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   description: Valid rows (only in dry-run mode)
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       row:
+ *                         type: integer
+ *                       field:
+ *                         type: string
+ *                       value:
+ *                         type: any
+ *                       error:
+ *                         type: string
+ *       400:
+ *         description: Invalid file or validation errors
  */

@@ -1,10 +1,36 @@
 import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
+import multer from 'multer'
+import path from 'path'
 import { AuthMiddleware, AuthService } from '../modules/auth'
 import { createProductModule } from '../modules/products'
 import { uploadProductImage } from '../utils/fileUpload'
 
 const router = Router()
+
+// Multer configuration for Excel file uploads
+const excelStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, path.join(__dirname, '../../uploads/bulk-imports'))
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, 'products-' + uniqueSuffix + '.xlsx')
+  }
+})
+
+const uploadExcel = multer({
+  storage: excelStorage,
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (ext === '.xlsx' || ext === '.xls') {
+      cb(null, true)
+    } else {
+      cb(new Error('Only Excel files (.xlsx, .xls) are allowed'))
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+})
 
 // Function to create router with dependencies
 export function createProductRoutes(prisma: PrismaClient) {
@@ -368,6 +394,22 @@ router.delete('/products/:id', authMiddleware.authenticate, productController.de
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/variants', authMiddleware.authenticate, productController.variantValidation, productController.createVariant)
+
+/**
+ * @swagger
+ * /api/products/bulk/template:
+ *   get:
+ *     summary: Download Product import Excel template
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Excel file template
+ */
+router.get('/products/bulk/template', authMiddleware.authenticate, productController.downloadProductTemplate)
+
+router.post('/products/bulk/import', authMiddleware.authenticate, uploadExcel.single('file'), productController.bulkImportProducts)
 
   return router
 }

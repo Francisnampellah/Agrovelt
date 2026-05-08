@@ -1,9 +1,35 @@
 import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
+import multer from 'multer'
+import path from 'path'
 import { AuthMiddleware, AuthService } from '../modules/auth'
 import { createInventoryModule } from '../modules/inventory'
 
 const router = Router()
+
+// Multer configuration for Excel file uploads
+const excelStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, path.join(__dirname, '../../uploads/bulk-imports'))
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, 'inventory-' + uniqueSuffix + '.xlsx')
+  }
+})
+
+const uploadExcel = multer({
+  storage: excelStorage,
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (ext === '.xlsx' || ext === '.xls') {
+      cb(null, true)
+    } else {
+      cb(new Error('Only Excel files (.xlsx, .xls) are allowed'))
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+})
 
 export function createInventoryRoutes(prisma: PrismaClient) {
   const authMiddleware = new AuthMiddleware(new AuthService(prisma))
@@ -100,6 +126,13 @@ router.post('/inventory/adjust', authMiddleware.authenticate, inventoryControlle
  *         description: Shop inventory transactions
  */
 router.get('/inventory/shops/:shopId/transactions', authMiddleware.authenticate, inventoryController.getTransactionsByShop)
+
+router.get('/inventory/bulk/template/update', authMiddleware.authenticate, inventoryController.downloadInventoryUpdateTemplate)
+router.get('/inventory/bulk/template/adjust', authMiddleware.authenticate, inventoryController.downloadInventoryAdjustTemplate)
+
+router.post('/inventory/bulk/update', authMiddleware.authenticate, uploadExcel.single('file'), inventoryController.bulkUpdateInventory)
+
+router.post('/inventory/bulk/adjust', authMiddleware.authenticate, uploadExcel.single('file'), inventoryController.bulkAdjustInventory)
 
   return router
 }

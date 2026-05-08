@@ -1,4 +1,4 @@
-﻿import { PrismaClient, Prisma, InventoryTxnType } from '@prisma/client'
+import { PrismaClient, Prisma, InventoryTxnType } from '@prisma/client'
 import { UpdateInventoryRequest, AdjustInventoryRequest } from './types'
 
 type TxClient = Prisma.TransactionClient
@@ -8,6 +8,25 @@ export class InventoryService {
 
   private db(tx?: TxClient): TxClient | PrismaClient {
     return tx ?? this.prisma
+  }
+
+  async assertShopAccess(shopId: string, userId: string, role: string, tx?: TxClient): Promise<void> {
+    if (role === 'ADMIN' || role === 'SUPER_ADMIN') return
+
+    const db = this.db(tx)
+    const shop = await db.shop.findUnique({
+      where: { id: shopId },
+      include: {
+        staff: {
+          where: { userId }
+        }
+      }
+    })
+
+    if (!shop) throw new Error(`Shop ${shopId} not found`)
+    if (shop.ownerId !== userId && shop.staff.length === 0) {
+      throw new Error(`Access denied to shop ${shopId}`)
+    }
   }
 
   async assertSameOrg(shopId: string, variantIds: string[], tx?: TxClient): Promise<void> {
