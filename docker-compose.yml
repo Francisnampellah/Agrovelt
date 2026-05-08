@@ -21,6 +21,7 @@ services:
         condition: service_healthy
     volumes:
       - .:/usr/src/app
+      - node_modules:/usr/src/app/node_modules
 
   db:
     image: postgres:15-alpine
@@ -58,3 +59,4 @@ services:
 
 volumes:
   postgres_data:
+  node_modules:
