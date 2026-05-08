@@ -68,6 +68,9 @@ export function getSwaggerConfig(port: number | string) {
             properties: {
               id: { type: 'string', format: 'uuid' },
               name: { type: 'string' },
+              slug: { type: 'string' },
+              email: { type: 'string' },
+              phoneNumber: { type: 'string', nullable: true },
               createdAt: { type: 'string', format: 'date-time' }
             }
           },

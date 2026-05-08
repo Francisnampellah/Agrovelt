@@ -11,6 +11,12 @@ async function main() {
   const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'bnampellah1@gmail.com'
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin123!'
   const ORG_NAME = process.env.ADMIN_ORG_NAME || 'nampellah'
+  const ORG_EMAIL = process.env.ADMIN_ORG_EMAIL || ADMIN_EMAIL
+  const ORG_SLUG = (process.env.ADMIN_ORG_SLUG || ORG_NAME)
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
 
   const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12)
 
@@ -20,7 +26,11 @@ async function main() {
 
   if (!organization) {
     organization = await prisma.organization.create({
-      data: { name: ORG_NAME }
+      data: {
+        name: ORG_NAME,
+        slug: ORG_SLUG,
+        email: ORG_EMAIL
+      }
     })
   }
 

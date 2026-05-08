@@ -53,9 +53,12 @@ enum TransferStatus {
 // ------------------------------------------------------
 
 model Organization {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  email       String   @unique
+  phoneNumber String?
+  createdAt   DateTime @default(now())
 
   // Core entities strictly isolated per organization
   users     User[]

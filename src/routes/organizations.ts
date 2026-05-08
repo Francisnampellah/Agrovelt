@@ -26,13 +26,22 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name]
+ *             required: [name, slug, email]
  *             properties:
  *               name:
  *                 type: string
  *                 minLength: 1
  *                 maxLength: 100
  *                 example: ABC Agricultural Ltd
+ *               slug:
+ *                 type: string
+ *                 example: abc-agri
+ *               email:
+ *                 type: string
+ *                 example: contact@abcagri.com
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+254712345678"
  *     responses:
  *       201:
  *         description: Organization created successfully
@@ -157,6 +166,14 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
  *                 type: string
  *                 minLength: 1
  *                 example: ABC Agricultural Ltd Updated
+ *               slug:
+ *                 type: string
+ *                 example: abc-agri-updated
+ *               email:
+ *                 type: string
+ *                 example: info@abcagri.com
+ *               phoneNumber:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Organization updated successfully

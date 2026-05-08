@@ -1,6 +1,6 @@
 /**
  * @swagger
- * /organizations:
+ * /api/organizations:
  *   post:
  *     tags: [Organizations]
  *     summary: Create a new organization
@@ -11,15 +11,15 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, slug]
+ *             required: [name, slug, email]
  *             properties:
  *               name:
  *                 type: string
  *               slug:
  *                 type: string
- *               address:
+ *               email:
  *                 type: string
- *               phone:
+ *               phoneNumber:
  *                 type: string
  *     responses:
  *       201:
@@ -37,7 +37,7 @@
  *       401:
  *         description: Unauthorized
  * 
- * /organizations/{id}:
+ * /api/organizations/{id}:
  *   get:
  *     tags: [Organizations]
  *     summary: Get organization by ID
@@ -72,9 +72,11 @@
  *             properties:
  *               name:
  *                 type: string
- *               address:
+ *               slug:
  *                 type: string
- *               phone:
+ *               email:
+ *                 type: string
+ *               phoneNumber:
  *                 type: string
  *     responses:
  *       200:

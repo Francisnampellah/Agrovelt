@@ -7,11 +7,17 @@ export class OrganizationController {
   constructor(private organizationService: OrganizationService) {}
 
   createValidation = [
-    body('name').trim().notEmpty().withMessage('Organization name is required').isLength({ min: 2, max: 100 })
+    body('name').trim().notEmpty().withMessage('Organization name is required').isLength({ min: 2, max: 100 }),
+    body('slug').trim().notEmpty().withMessage('Slug is required').isLowercase().withMessage('Slug must be lowercase').matches(/^[a-z0-9-]+$/).withMessage('Slug can only contain letters, numbers and hyphens'),
+    body('email').trim().notEmpty().withMessage('Email is required').isEmail().withMessage('Invalid email format'),
+    body('phoneNumber').optional().trim()
   ]
 
   updateValidation = [
-    body('name').optional().trim().isLength({ min: 2, max: 100 })
+    body('name').optional().trim().isLength({ min: 2, max: 100 }),
+    body('slug').optional().trim().isLowercase().withMessage('Slug must be lowercase').matches(/^[a-z0-9-]+$/).withMessage('Slug can only contain letters, numbers and hyphens'),
+    body('email').optional().trim().isEmail().withMessage('Invalid email format'),
+    body('phoneNumber').optional().trim()
   ]
 
   create = async (req: Request, res: Response) => {
