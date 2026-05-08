@@ -9,8 +9,7 @@ export class InventoryController {
     body('shopId').isUUID().withMessage('Invalid shop ID'),
     body('variantId').isUUID().withMessage('Invalid variant ID'),
     body('quantity').isInt({ min: 0 }).withMessage('Quantity must be >= 0'),
-    body('costPrice').isFloat({ min: 0 }).withMessage('Cost price must be >= 0'),
-    body('sellingPrice').isFloat({ min: 0 }).withMessage('Selling price must be >= 0')
+    body('costPrice').isFloat({ min: 0 }).withMessage('Cost price must be >= 0')
   ]
 
   adjustValidation = [

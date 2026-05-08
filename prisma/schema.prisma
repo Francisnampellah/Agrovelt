@@ -145,6 +145,8 @@ model Shop {
   inventoryTransactions InventoryTransaction[]
   transfersOut          InventoryTransfer[]    @relation("TransferFrom")
   transfersIn           InventoryTransfer[]    @relation("TransferTo")
+  variantPrices         ShopVariantPrice[]
+  cashFlowEntries       CashFlowEntry[]
 }
 
 model ShopStaff {
@@ -202,6 +204,11 @@ model ProductVariant {
   productId String
   name      String // e.g. "500ml", "1kg"
   sku       String
+  
+  defaultCostPrice    Float?   // Org-wide fallback cost
+  defaultSellingPrice Float?   // Org-wide fallback selling price
+  markupPercent       Float?   // If set, selling price = costPrice * (1 + markup/100)
+
   createdAt DateTime @default(now())
 
   product Product @relation(fields: [productId], references: [id])
@@ -211,6 +218,8 @@ model ProductVariant {
   purchaseItems         PurchaseItem[]
   saleItems             SaleItem[]
   transferItems         InventoryTransferItem[]
+  shopPrices            ShopVariantPrice[]
+  priceHistories        PriceHistory[]
 
   // SKU must be unique across the entire system, or alternatively unique per organization.
   // Assuming global SKU uniqueness for barcode scanners, but per-tenant is often preferred.
@@ -232,7 +241,7 @@ model Inventory {
 
   quantity     Int      @default(0)
   costPrice    Float
-  sellingPrice Float
+  // sellingPrice Float // Removed in favor of ShopVariantPrice
   updatedAt    DateTime @updatedAt
 
   shop    Shop           @relation(fields: [shopId], references: [id])
@@ -281,6 +290,74 @@ model InventoryTransferItem {
 
   transfer InventoryTransfer @relation(fields: [transferId], references: [id])
   variant  ProductVariant    @relation(fields: [variantId], references: [id])
+}
+
+// ------------------------------------------------------
+// PRICING & CASH FLOW
+// ------------------------------------------------------
+
+enum PriceType {
+  COST
+  SELLING
+  MIN_SELLING
+}
+
+model ShopVariantPrice {
+  id              String   @id @default(uuid())
+  shopId          String
+  variantId       String
+  sellingPrice    Float
+  minSellingPrice Float?   // Staff cannot sell below this
+  updatedAt       DateTime @updatedAt
+  updatedBy       String
+
+  shop    Shop           @relation(fields: [shopId], references: [id])
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@unique([shopId, variantId])
+}
+
+model PriceHistory {
+  id        String    @id @default(uuid())
+  shopId    String?   // null = variant-level (org-wide) change
+  variantId String
+  priceType PriceType
+  oldPrice  Float
+  newPrice  Float
+  reason    String?
+  changedBy String    // User ID
+  createdAt DateTime  @default(now())
+
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+enum CashFlowDirection {
+  IN
+  OUT
+}
+
+enum CashFlowCategory {
+  SALE
+  PURCHASE
+  EXPENSE
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  REFUND
+}
+
+model CashFlowEntry {
+  id          String              @id @default(uuid())
+  shopId      String
+  direction   CashFlowDirection
+  category    CashFlowCategory
+  amount      Float
+  referenceId String?             // sale ID, purchase ID, expense ID, etc.
+  note        String?
+  recordedBy  String              // User ID
+  createdAt   DateTime            @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id])
 }
 
 // ------------------------------------------------------

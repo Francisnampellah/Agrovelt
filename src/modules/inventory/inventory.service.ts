@@ -1,28 +1,49 @@
-import { PrismaClient, InventoryTxnType } from '@prisma/client'
+﻿import { PrismaClient, Prisma, InventoryTxnType } from '@prisma/client'
 import { UpdateInventoryRequest, AdjustInventoryRequest } from './types'
+
+type TxClient = Prisma.TransactionClient
 
 export class InventoryService {
   constructor(private prisma: PrismaClient) {}
 
-  async updateInventory(data: UpdateInventoryRequest) {
-    const { shopId, variantId, batchNumber = 'DEFAULT', expiryDate, quantity, costPrice, sellingPrice } = data
+  private db(tx?: TxClient): TxClient | PrismaClient {
+    return tx ?? this.prisma
+  }
 
-    // Check if shop exists
-    const shop = await this.prisma.shop.findUnique({ where: { id: shopId } })
-    if (!shop) throw new Error('Shop not found')
+  async assertSameOrg(shopId: string, variantIds: string[], tx?: TxClient): Promise<void> {
+    const db = this.db(tx)
 
-    // Check if variant exists
-    const variant = await this.prisma.productVariant.findUnique({ where: { id: variantId } })
-    if (!variant) throw new Error('Product variant not found')
+    const shop = await db.shop.findUnique({ where: { id: shopId } })
+    if (!shop) throw new Error(`Shop ${shopId} not found`)
 
-    return this.prisma.inventory.upsert({
+    // Unique variant IDs to avoid redundant lookups
+    const uniqueIds = [...new Set(variantIds)]
+
+    const variants = await db.productVariant.findMany({
+      where: { id: { in: uniqueIds } },
+      include: { product: true }
+    })
+
+    const foreignVariant = variants.find(v => v.product.organizationId !== shop.organizationId)
+    if (foreignVariant) {
+      throw new Error(
+        `Variant ${foreignVariant.id} does not belong to organization ${shop.organizationId}`
+      )
+    }
+  }
+
+  async updateInventory(data: UpdateInventoryRequest, tx?: TxClient) {
+    const { shopId, variantId, batchNumber = 'DEFAULT', expiryDate, quantity, costPrice } = data
+
+    await this.assertSameOrg(shopId, [variantId], tx)
+
+    return this.db(tx).inventory.upsert({
       where: {
         shopId_variantId_batchNumber: { shopId, variantId, batchNumber }
       },
       update: {
         quantity,
         costPrice,
-        sellingPrice,
         ...(expiryDate && { expiryDate: new Date(expiryDate) })
       },
       create: {
@@ -31,18 +52,162 @@ export class InventoryService {
         batchNumber,
         quantity,
         costPrice,
-        sellingPrice,
         ...(expiryDate && { expiryDate: new Date(expiryDate) })
       }
     })
   }
 
-  async adjustInventory(data: AdjustInventoryRequest) {
-    const { shopId, variantId, batchNumber = 'DEFAULT', change, type, referenceId } = data
+  async receivePurchaseBatch(
+    data: {
+      shopId: string
+      variantId: string
+      batchNumber: string
+      expiryDate?: Date
+      quantity: number
+      costPrice: number
+      purchaseId: string
+    },
+    tx?: TxClient
+  ): Promise<void> {
+    await this.assertSameOrg(data.shopId, [data.variantId], tx)
+    const db = this.db(tx)
 
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Update Inventory Level
-      const inventory = await tx.inventory.upsert({
+    await db.inventory.upsert({
+      where: {
+        shopId_variantId_batchNumber: {
+          shopId: data.shopId,
+          variantId: data.variantId,
+          batchNumber: data.batchNumber
+        }
+      },
+      update: {
+        quantity: { increment: data.quantity },
+        costPrice: data.costPrice,
+        ...(data.expiryDate && { expiryDate: data.expiryDate })
+      },
+      create: {
+        shopId: data.shopId,
+        variantId: data.variantId,
+        batchNumber: data.batchNumber,
+        quantity: data.quantity,
+        costPrice: data.costPrice,
+        ...(data.expiryDate && { expiryDate: data.expiryDate })
+      }
+    })
+
+    await db.inventoryTransaction.create({
+      data: {
+        shopId: data.shopId,
+        variantId: data.variantId,
+        batchNumber: data.batchNumber,
+        type: InventoryTxnType.PURCHASE,
+        quantity: data.quantity,
+        referenceId: data.purchaseId
+      }
+    })
+  }
+
+  async deductSaleStock(
+    data: {
+      shopId: string
+      variantId: string
+      batchNumber: string
+      quantity: number
+      saleId: string
+    },
+    tx?: TxClient
+  ): Promise<void> {
+    await this.assertSameOrg(data.shopId, [data.variantId], tx)
+    const db = this.db(tx)
+
+    const result = await db.inventory.updateMany({
+      where: {
+        shopId: data.shopId,
+        variantId: data.variantId,
+        batchNumber: data.batchNumber,
+        quantity: { gte: data.quantity }
+      },
+      data: { quantity: { decrement: data.quantity } }
+    })
+
+    if (result.count === 0) {
+      throw new Error(
+        `Insufficient stock for variant ${data.variantId} batch ${data.batchNumber}`
+      )
+    }
+
+    await db.inventoryTransaction.create({
+      data: {
+        shopId: data.shopId,
+        variantId: data.variantId,
+        batchNumber: data.batchNumber,
+        type: InventoryTxnType.SALE,
+        quantity: -data.quantity,
+        referenceId: data.saleId
+      }
+    })
+  }
+
+  async restoreRefundStock(
+    data: {
+      shopId: string
+      variantId: string
+      batchNumber: string
+      quantity: number
+      saleId: string
+    },
+    tx?: TxClient
+  ): Promise<void> {
+    await this.assertSameOrg(data.shopId, [data.variantId], tx)
+    const db = this.db(tx)
+
+    await db.inventory.update({
+      where: {
+        shopId_variantId_batchNumber: {
+          shopId: data.shopId,
+          variantId: data.variantId,
+          batchNumber: data.batchNumber
+        }
+      },
+      data: { quantity: { increment: data.quantity } }
+    })
+
+    await db.inventoryTransaction.create({
+      data: {
+        shopId: data.shopId,
+        variantId: data.variantId,
+        batchNumber: data.batchNumber,
+        type: InventoryTxnType.RETURN,
+        quantity: data.quantity,
+        referenceId: data.saleId
+      }
+    })
+  }
+
+  async adjustInventory(data: AdjustInventoryRequest & { costPrice?: number }, tx?: TxClient) {
+    const { shopId, variantId, batchNumber = 'DEFAULT', change, type, referenceId, costPrice } = data
+    
+    await this.assertSameOrg(shopId, [variantId], tx)
+    const db = this.db(tx)
+
+    if (change < 0) {
+      const result = await db.inventory.updateMany({
+        where: {
+          shopId,
+          variantId,
+          batchNumber,
+          quantity: { gte: Math.abs(change) }
+        },
+        data: { quantity: { increment: change } }
+      })
+      if (result.count === 0) {
+        throw new Error(`Insufficient inventory for variant ${variantId} and batch ${batchNumber}`)
+      }
+    } else {
+      if (costPrice === undefined || costPrice <= 0) {
+        throw new Error('costPrice is required and must be > 0 for positive adjustments')
+      }
+      await db.inventory.upsert({
         where: {
           shopId_variantId_batchNumber: { shopId, variantId, batchNumber }
         },
@@ -54,55 +219,37 @@ export class InventoryService {
           variantId,
           batchNumber,
           quantity: change,
-          costPrice: 0, // Should be updated properly through purchases
-          sellingPrice: 0
+          costPrice: costPrice
         }
       })
+    }
 
-      if (inventory.quantity < 0) {
-        throw new Error('Insufficient inventory')
+    await db.inventoryTransaction.create({
+      data: {
+        shopId,
+        variantId,
+        batchNumber,
+        type: type ?? InventoryTxnType.ADJUSTMENT,
+        quantity: change,
+        referenceId: referenceId ?? null
       }
-
-      // 2. Record Transaction
-      await tx.inventoryTransaction.create({
-        data: {
-          shopId,
-          variantId,
-          batchNumber,
-          type,
-          quantity: change,
-          referenceId: referenceId ?? null
-        }
-      })
-
-      return inventory
     })
   }
 
   async getInventoryByShop(shopId: string) {
     return this.prisma.inventory.findMany({
       where: { shopId },
-      include: {
-        variant: {
-          include: {
-            product: true
-          }
-        }
-      }
+      include: { variant: { include: { product: true } } }
     })
   }
 
-  async getTransactionsByShop(shopId: string) {
+  async getTransactionsByShop(shopId: string, cursor?: string, take = 50) {
     return this.prisma.inventoryTransaction.findMany({
       where: { shopId },
-      include: {
-        variant: {
-          include: {
-            product: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
+      take,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+      orderBy: { createdAt: 'desc' },
+      include: { variant: { include: { product: true } } }
     })
   }
 }

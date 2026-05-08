@@ -7,7 +7,6 @@ export interface UpdateInventoryRequest {
   expiryDate?: string
   quantity: number
   costPrice: number
-  sellingPrice: number
 }
 
 export interface AdjustInventoryRequest {
