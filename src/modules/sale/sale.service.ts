@@ -31,14 +31,15 @@ export class SaleService {
 
         computedTotalAmount += item.quantity * item.price
 
-        // 2. Deduct Inv using service boundary
-        await this.inventoryService.deductSaleStock({
+        // Store intermediate result on item to process allocations later
+        const allocations = await this.inventoryService.deductSaleStockFEFO({
           shopId: data.shopId,
           variantId: item.variantId,
-          batchNumber: item.batchNumber ?? 'DEFAULT',
           quantity: item.quantity,
           saleId: 'TBD'
         }, tx)
+        
+        ;(item as any)._allocations = allocations
       }
 
       const totalAmount = data.totalAmount ?? computedTotalAmount
@@ -57,13 +58,20 @@ export class SaleService {
 
       // 4. Create Sale Items and update inventory transaction links
       for (const item of data.items) {
-        await tx.saleItem.create({
+        const saleItem = await tx.saleItem.create({
           data: {
             saleId: sale.id,
             variantId: item.variantId,
-            batchNumber: item.batchNumber ?? 'DEFAULT',
+            batchNumber: 'DEPRECATED',
             quantity: item.quantity,
-            price: item.price!
+            price: item.price!,
+            allocations: {
+              create: ((item as any)._allocations || []).map((alloc: any) => ({
+                inventoryId: alloc.inventoryId,
+                batchNumber: 'DEPRECATED',
+                quantity: alloc.quantity
+              }))
+            }
           }
         })
       }
@@ -94,7 +102,7 @@ export class SaleService {
     return this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({
         where: { id: saleId },
-        include: { items: true }
+        include: { items: { include: { allocations: true } } }
       })
       if (!sale) throw new Error('Sale not found')
       if (sale.status === SaleStatus.REFUNDED) throw new Error('Already refunded')
@@ -108,8 +116,10 @@ export class SaleService {
         await this.inventoryService.restoreRefundStock({
           shopId: sale.shopId,
           variantId: item.variantId,
-          batchNumber: item.batchNumber,
-          quantity: item.quantity,
+          allocations: item.allocations.map(a => ({
+            inventoryId: a.inventoryId,
+            quantity: a.quantity
+          })),
           saleId: sale.id
         }, tx)
       }

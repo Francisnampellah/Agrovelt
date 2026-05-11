@@ -6,7 +6,7 @@ import { InventoryService } from './inventory.service'
 export interface BulkInventoryUpdateRow {
   shopId: string
   variantId: string
-  batchNumber?: string
+  batchNumber?: string // Deprecated
   quantity: number | string
   costPrice: number | string
   expiryDate?: string
@@ -15,7 +15,7 @@ export interface BulkInventoryUpdateRow {
 export interface BulkInventoryAdjustRow {
   shopId: string
   variantId: string
-  batchNumber?: string
+  batchNumber?: string // Deprecated
   change: number | string
   type: string
   referenceId?: string

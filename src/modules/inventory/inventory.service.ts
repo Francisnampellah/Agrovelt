@@ -87,11 +87,11 @@ export class InventoryService {
       purchaseId: string
     },
     tx?: TxClient
-  ): Promise<void> {
+  ): Promise<string> { // Return the inventory ID
     await this.assertSameOrg(data.shopId, [data.variantId], tx)
     const db = this.db(tx)
 
-    await db.inventory.upsert({
+    const inv = await db.inventory.upsert({
       where: {
         shopId_variantId_batchNumber: {
           shopId: data.shopId,
@@ -118,61 +118,81 @@ export class InventoryService {
       data: {
         shopId: data.shopId,
         variantId: data.variantId,
+        inventoryId: inv.id,
         batchNumber: data.batchNumber,
         type: InventoryTxnType.PURCHASE,
         quantity: data.quantity,
         referenceId: data.purchaseId
       }
     })
+
+    return inv.id
   }
 
-  async deductSaleStock(
+  async deductSaleStockFEFO(
     data: {
       shopId: string
       variantId: string
-      batchNumber: string
       quantity: number
       saleId: string
     },
     tx?: TxClient
-  ): Promise<void> {
+  ): Promise<{ inventoryId: string, quantity: number }[]> {
     await this.assertSameOrg(data.shopId, [data.variantId], tx)
     const db = this.db(tx)
 
-    const result = await db.inventory.updateMany({
+    const availableBatches = await db.inventory.findMany({
       where: {
         shopId: data.shopId,
         variantId: data.variantId,
-        batchNumber: data.batchNumber,
-        quantity: { gte: data.quantity }
+        quantity: { gt: 0 }
       },
-      data: { quantity: { decrement: data.quantity } }
+      orderBy: { expiryDate: 'asc' }
     })
 
-    if (result.count === 0) {
-      throw new Error(
-        `Insufficient stock for variant ${data.variantId} batch ${data.batchNumber}`
-      )
+    const allocations: { inventoryId: string, quantity: number }[] = []
+    let remainingQuantity = data.quantity
+
+    for (const batch of availableBatches) {
+      if (remainingQuantity <= 0) break
+
+      const deductAmount = Math.min(batch.quantity, remainingQuantity)
+      remainingQuantity -= deductAmount
+
+      // Update inventory directly
+      await db.inventory.update({
+        where: { id: batch.id },
+        data: { quantity: { decrement: deductAmount } }
+      })
+
+      // Record transaction
+      await db.inventoryTransaction.create({
+        data: {
+          shopId: data.shopId,
+          variantId: data.variantId,
+          inventoryId: batch.id,
+          batchNumber: batch.batchNumber, // Still keeping for audit/legacy
+          type: InventoryTxnType.SALE,
+          quantity: -deductAmount,
+          referenceId: data.saleId
+        }
+      })
+
+      allocations.push({ inventoryId: batch.id, quantity: deductAmount })
     }
 
-    await db.inventoryTransaction.create({
-      data: {
-        shopId: data.shopId,
-        variantId: data.variantId,
-        batchNumber: data.batchNumber,
-        type: InventoryTxnType.SALE,
-        quantity: -data.quantity,
-        referenceId: data.saleId
-      }
-    })
+    if (remainingQuantity > 0) {
+      throw new Error(`Insufficient stock for variant ${data.variantId}. Short by ${remainingQuantity}`)
+    }
+
+    return allocations
   }
 
   async restoreRefundStock(
     data: {
       shopId: string
       variantId: string
-      batchNumber: string
-      quantity: number
+      allocations: { inventoryId: string, quantity: number }[]
       saleId: string
     },
     tx?: TxClient
@@ -180,27 +200,24 @@ export class InventoryService {
     await this.assertSameOrg(data.shopId, [data.variantId], tx)
     const db = this.db(tx)
 
-    await db.inventory.update({
-      where: {
-        shopId_variantId_batchNumber: {
+    for (const allocation of data.allocations) {
+      const inv = await db.inventory.update({
+        where: { id: allocation.inventoryId },
+        data: { quantity: { increment: allocation.quantity } }
+      })
+
+      await db.inventoryTransaction.create({
+        data: {
           shopId: data.shopId,
           variantId: data.variantId,
-          batchNumber: data.batchNumber
+          inventoryId: inv.id,
+          batchNumber: inv.batchNumber,
+          type: InventoryTxnType.RETURN,
+          quantity: allocation.quantity,
+          referenceId: data.saleId
         }
-      },
-      data: { quantity: { increment: data.quantity } }
-    })
-
-    await db.inventoryTransaction.create({
-      data: {
-        shopId: data.shopId,
-        variantId: data.variantId,
-        batchNumber: data.batchNumber,
-        type: InventoryTxnType.RETURN,
-        quantity: data.quantity,
-        referenceId: data.saleId
-      }
-    })
+      })
+    }
   }
 
   async adjustInventory(data: AdjustInventoryRequest & { costPrice?: number }, tx?: TxClient) {
@@ -209,24 +226,27 @@ export class InventoryService {
     await this.assertSameOrg(shopId, [variantId], tx)
     const db = this.db(tx)
 
+    let inventoryId: string | undefined
+
     if (change < 0) {
-      const result = await db.inventory.updateMany({
-        where: {
-          shopId,
-          variantId,
-          batchNumber,
-          quantity: { gte: Math.abs(change) }
-        },
-        data: { quantity: { increment: change } }
+      const targetInv = await db.inventory.findUnique({
+        where: { shopId_variantId_batchNumber: { shopId, variantId, batchNumber } }
       })
-      if (result.count === 0) {
+
+      if (!targetInv || targetInv.quantity < Math.abs(change)) {
         throw new Error(`Insufficient inventory for variant ${variantId} and batch ${batchNumber}`)
       }
+
+      const updatedInv = await db.inventory.update({
+        where: { id: targetInv.id },
+        data: { quantity: { increment: change } }
+      })
+      inventoryId = updatedInv.id
     } else {
       if (costPrice === undefined || costPrice <= 0) {
         throw new Error('costPrice is required and must be > 0 for positive adjustments')
       }
-      await db.inventory.upsert({
+      const inv = await db.inventory.upsert({
         where: {
           shopId_variantId_batchNumber: { shopId, variantId, batchNumber }
         },
@@ -241,12 +261,14 @@ export class InventoryService {
           costPrice: costPrice
         }
       })
+      inventoryId = inv.id
     }
 
     await db.inventoryTransaction.create({
       data: {
         shopId,
         variantId,
+        inventoryId,
         batchNumber,
         type: type ?? InventoryTxnType.ADJUSTMENT,
         quantity: change,
@@ -259,6 +281,17 @@ export class InventoryService {
     return this.prisma.inventory.findMany({
       where: { shopId },
       include: { variant: { include: { product: true } } }
+    })
+  }
+
+  async getBatchesByVariant(shopId: string, variantId: string) {
+    return this.prisma.inventory.findMany({
+      where: {
+        shopId,
+        variantId,
+        quantity: { gt: 0 }
+      },
+      orderBy: { expiryDate: 'asc' }
     })
   }
 

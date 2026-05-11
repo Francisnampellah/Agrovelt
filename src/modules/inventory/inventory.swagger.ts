@@ -20,7 +20,7 @@
  *                 type: string
  *               batchNumber:
  *                 type: string
- *                 default: 'DEFAULT'
+ *                 description: "Deprecated: Use inventoryId internally. If provided, used for batch-specific updates."
  *               quantity:
  *                 type: integer
  *                 minimum: 0
@@ -30,6 +30,7 @@
  *               expiryDate:
  *                 type: string
  *                 format: date-time
+ *                 description: "Used to order batches for FEFO (First Expiry First Out) logic."
  *     responses:
  *       200:
  *         description: Inventory updated successfully
@@ -56,7 +57,7 @@
  *                 type: string
  *               batchNumber:
  *                 type: string
- *                 default: 'DEFAULT'
+ *                 description: "Deprecated: Use inventoryId internally. If provided, maps to a specific batch record."
  *               change:
  *                 type: integer
  *               type:
@@ -103,6 +104,36 @@
  *     responses:
  *       200:
  *         description: List of inventory transactions
+ *
+ * /api/inventory/shops/{shopId}/variants/{variantId}/batches:
+ *   get:
+ *     tags: [Inventory]
+ *     summary: Get available batches for a variant in a specific shop
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: shopId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: variantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of available batches (quantity > 0)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Inventory'
  *
  * /api/inventory/bulk/update:
  *   post:

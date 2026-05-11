@@ -11,7 +11,8 @@ export interface CreatePurchaseRequest {
     variantId: string
     quantity: number
     costPrice: number
-    batchNumber?: string
+    inventoryId?: string // User can select an existing inventoryId to "top up" a batch
+    batchNumber?: string // Legacy/Manual override
     expiryDate?: Date
   }[]
 }
@@ -42,28 +43,44 @@ export class PurchaseService {
       })
 
       for (const item of data.items) {
-        // 2. Create purchase line item
-        await tx.purchaseItem.create({
-          data: {
-            purchaseId: purchase.id,
-            variantId: item.variantId,
-            batchNumber: item.batchNumber,
-            quantity: item.quantity,
-            costPrice: item.costPrice,
-            expiryDate: item.expiryDate
-          }
-        })
+        let finalBatchNumber: string
+        let finalInventoryId: string | undefined = item.inventoryId
+
+        if (finalInventoryId) {
+          // If user selected an existing inventory record, fetch its batch number
+          const existingInv = await tx.inventory.findUnique({
+            where: { id: finalInventoryId }
+          })
+          if (!existingInv) throw new Error(`Inventory record ${finalInventoryId} not found`)
+          finalBatchNumber = existingInv.batchNumber
+        } else {
+          // Else generate a new batch only
+          finalBatchNumber = item.batchNumber || `BATCH-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        }
 
         // 3. Update inventory stock and batch cost using the service boundary
-        await this.inventoryService.receivePurchaseBatch({
+        const inventoryId = await this.inventoryService.receivePurchaseBatch({
           shopId: data.shopId,
           variantId: item.variantId,
-          batchNumber: item.batchNumber ?? 'DEFAULT',
+          batchNumber: finalBatchNumber,
           expiryDate: item.expiryDate,
           quantity: item.quantity,
           costPrice: item.costPrice,
           purchaseId: purchase.id
         }, tx)
+
+        // 2. Create purchase line item (Linked to Inventory)
+        await tx.purchaseItem.create({
+          data: {
+            purchaseId: purchase.id,
+            variantId: item.variantId,
+            inventoryId: inventoryId,
+            batchNumber: finalBatchNumber,
+            quantity: item.quantity,
+            costPrice: item.costPrice,
+            expiryDate: item.expiryDate
+          }
+        })
 
         // 4. Optionally auto-update selling price based on markup
         await this.pricingService.autoUpdateSellingPriceFromCost(tx, {

@@ -127,6 +127,38 @@ router.post('/inventory/adjust', authMiddleware.authenticate, inventoryControlle
  */
 router.get('/inventory/shops/:shopId/transactions', authMiddleware.authenticate, inventoryController.getTransactionsByShop)
 
+/**
+ * @swagger
+ * /api/inventory/shops/{shopId}/variants/{variantId}/batches:
+ *   get:
+ *     summary: Get available batches (with quantity > 0) for a variant in a shop
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: shopId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: variantId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: List of available batches
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Inventory'
+ */
+router.get('/inventory/shops/:shopId/variants/:variantId/batches', authMiddleware.authenticate, inventoryController.getBatchesByVariant)
+
 router.get('/inventory/bulk/template/update', authMiddleware.authenticate, inventoryController.downloadInventoryUpdateTemplate)
 router.get('/inventory/bulk/template/adjust', authMiddleware.authenticate, inventoryController.downloadInventoryAdjustTemplate)
 

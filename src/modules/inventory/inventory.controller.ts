@@ -60,6 +60,17 @@ export class InventoryController {
     }
   }
 
+  getBatchesByVariant = async (req: Request, res: Response) => {
+    try {
+      const shopId = String(req.params.shopId)
+      const variantId = String(req.params.variantId)
+      const batches = await this.inventoryService.getBatchesByVariant(shopId, variantId)
+      res.json({ data: batches })
+    } catch (error: any) {
+      res.status(500).json({ error: error.message })
+    }
+  }
+
   getTransactionsByShop = async (req: Request, res: Response) => {
     try {
       const shopId = String(req.params.shopId)

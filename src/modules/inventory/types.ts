@@ -3,7 +3,7 @@ import { InventoryTxnType } from '@prisma/client'
 export interface UpdateInventoryRequest {
   shopId: string
   variantId: string
-  batchNumber?: string
+  batchNumber?: string // Deprecated
   expiryDate?: string
   quantity: number
   costPrice: number
@@ -12,7 +12,7 @@ export interface UpdateInventoryRequest {
 export interface AdjustInventoryRequest {
   shopId: string
   variantId: string
-  batchNumber?: string
+  batchNumber?: string // Deprecated
   change: number
   type: InventoryTxnType
   referenceId?: string

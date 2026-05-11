@@ -247,6 +247,11 @@ model Inventory {
   shop    Shop           @relation(fields: [shopId], references: [id])
   variant ProductVariant @relation(fields: [variantId], references: [id])
 
+  inventoryTransactions InventoryTransaction[]
+  saleAllocations       SaleBatchAllocation[]
+  transferItems         InventoryTransferItem[]
+  purchaseItems         PurchaseItem[]
+
   // Stock is uniquely tracked per shop, variant, AND batch
   @@unique([shopId, variantId, batchNumber])
 }
@@ -255,15 +260,17 @@ model InventoryTransaction {
   id        String           @id @default(uuid())
   shopId    String
   variantId String
+  inventoryId String?        // New: Relational reference
   type      InventoryTxnType
 
-  batchNumber String? // Which batch was affected
+  batchNumber String? // Deprecated: Use inventoryId
   quantity    Int // Positive or negative based on transaction type
   referenceId String? // ID of purchase, sale, or transfer
   createdAt   DateTime @default(now())
 
-  shop    Shop           @relation(fields: [shopId], references: [id])
-  variant ProductVariant @relation(fields: [variantId], references: [id])
+  shop      Shop           @relation(fields: [shopId], references: [id])
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  inventory Inventory?     @relation(fields: [inventoryId], references: [id])
 }
 
 model InventoryTransfer {
@@ -285,11 +292,13 @@ model InventoryTransferItem {
   id          String @id @default(uuid())
   transferId  String
   variantId   String
-  batchNumber String @default("DEFAULT")
+  inventoryId String // New: Strict reference to inventory
+  batchNumber String @default("DEFAULT") // Deprecated
   quantity    Int
 
-  transfer InventoryTransfer @relation(fields: [transferId], references: [id])
-  variant  ProductVariant    @relation(fields: [variantId], references: [id])
+  transfer  InventoryTransfer @relation(fields: [transferId], references: [id])
+  variant   ProductVariant    @relation(fields: [variantId], references: [id])
+  inventory Inventory         @relation(fields: [inventoryId], references: [id])
 }
 
 // ------------------------------------------------------
@@ -396,13 +405,15 @@ model PurchaseItem {
   id          String    @id @default(uuid())
   purchaseId  String
   variantId   String
-  batchNumber String? // Batch details received
+  inventoryId String?   // New: Relational reference
+  batchNumber String?   // Deprecated
   expiryDate  DateTime?
   quantity    Int
   costPrice   Float
 
-  purchase Purchase       @relation(fields: [purchaseId], references: [id])
-  variant  ProductVariant @relation(fields: [variantId], references: [id])
+  purchase  Purchase       @relation(fields: [purchaseId], references: [id])
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  inventory Inventory?     @relation(fields: [inventoryId], references: [id])
 }
 
 // ------------------------------------------------------
@@ -430,12 +441,24 @@ model SaleItem {
   id          String  @id @default(uuid())
   saleId      String
   variantId   String
-  batchNumber String? // Which batch was sold (for FEFO auditing)
+  batchNumber String? // Deprecated: Use allocations instead
   quantity    Int
   price       Float
 
   sale    Sale           @relation(fields: [saleId], references: [id])
   variant ProductVariant @relation(fields: [variantId], references: [id])
+  allocations SaleBatchAllocation[]
+}
+
+model SaleBatchAllocation {
+  id          String   @id @default(uuid())
+  saleItemId  String
+  inventoryId String   // New: Strict reference to inventory
+  batchNumber String   // Deprecated
+  quantity    Int
+
+  saleItem  SaleItem  @relation(fields: [saleItemId], references: [id])
+  inventory Inventory @relation(fields: [inventoryId], references: [id])
 }
 
 model Payment {

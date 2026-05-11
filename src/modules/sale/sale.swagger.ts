@@ -19,10 +19,11 @@
  *                 type: array
  *                 items:
  *                   type: object
+ *                   required: [variantId, quantity]
  *                   properties:
  *                     variantId: { type: string }
- *                     quantity: { type: integer }
- *                     price: { type: number }
+ *                     quantity: { type: integer, minimum: 1 }
+ *                     price: { type: number, description: "Optional. If not provided, the default selling price for the shop is used." }
  *     responses:
  *       201:
  *         description: Sale created
