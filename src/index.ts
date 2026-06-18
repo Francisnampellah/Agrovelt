@@ -1,5 +1,6 @@
 import express from 'express'
 import path from 'path'
+import cors from 'cors'
 import swaggerUi from 'swagger-ui-express'
 import swaggerJsdoc from 'swagger-jsdoc'
 import { prisma } from './config/database'
@@ -17,8 +18,23 @@ import { createFirebaseRoutes } from './routes/firebase'
 
 const app = express()
 const PORT = process.env.PORT || 4000
+const allowedOrigins = [
+  'http://localhost:5174',
+  'http://localhost:5173',
+  'https://app.afyamnyamadigital.co.tz',
+  'https://afyamnyamadigital.co.tz'
+]
+// ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINiNHyBbBzM3bXJJWDMNR3idYuLsgxh5yt7vURuNLIA9 shokokimera@gmail.com
 
 // Middleware
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}))
+app.options(/.*/, cors({
+  origin: allowedOrigins,
+  credentials: true
+})) // Enable pre-flight for all routes
 app.use(express.json())
 
 // Serve static files for product images
