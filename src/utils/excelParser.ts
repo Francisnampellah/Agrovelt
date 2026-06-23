@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import * as ExcelJS from 'exceljs'
 
 export interface ExcelValidationError {
   row: number
@@ -19,31 +19,31 @@ export interface BulkImportResult<T> {
 /**
  * Parse Excel file and extract sheet data
  */
-export function parseExcelFile(filePath: string, sheetName?: string): any[] {
-  const workbook = XLSX.readFile(filePath)
-  const sheetNames = workbook.SheetNames
-  
-  if (sheetNames.length === 0) {
+export async function parseExcelFile(filePath: string, sheetName?: string): Promise<any[]> {
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(filePath)
+
+  const worksheets = workbook.worksheets
+  if (worksheets.length === 0) {
     throw new Error('Workbook has no sheets')
   }
 
-  // Safe access to sheet name
-  const firstSheetName = sheetNames[0]
-  const selectedSheetName = sheetName || firstSheetName
-
+  const selectedSheetName = sheetName || worksheets[0]?.name
   if (!selectedSheetName) {
     throw new Error('Could not determine sheet name')
   }
 
-  const sheet = workbook.Sheets[selectedSheetName]
-  
-  if (!sheet) {
+  const worksheet = workbook.getWorksheet(selectedSheetName)
+  if (!worksheet) {
     throw new Error(`Sheet "${selectedSheetName}" not found in workbook`)
   }
 
-  // Use header: 1 to get raw array of arrays
-  const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 })
-  
+  const rows: ExcelJS.CellValue[][] = []
+  worksheet.eachRow({ includeEmpty: true }, (row) => {
+    const values = row.values as (ExcelJS.CellValue | undefined)[]
+    rows.push(values.slice(1) as ExcelJS.CellValue[])
+  })
+
   if (rows.length === 0) {
     return []
   }
@@ -57,15 +57,14 @@ export function parseExcelFile(filePath: string, sheetName?: string): any[] {
 
   return dataRows.map((row) => {
     const parsedRow: Record<string, any> = {}
-    
+
     headers.forEach((header, index) => {
-      // Preferred safe pattern to avoid TS2538: Type 'undefined' cannot be used as an index type
       const key = header as string | undefined
       if (key !== undefined && key !== null && String(key).trim() !== '') {
         parsedRow[String(key)] = row[index]
       }
     })
-    
+
     return parsedRow
   })
 }
