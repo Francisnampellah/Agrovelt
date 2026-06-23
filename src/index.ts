@@ -46,6 +46,11 @@ app.use((req, res, next) => {
   if (publicPaths.some(p => req.path.startsWith(p))) {
     return next()
   }
+
+  // Organization signup — no auth required for creation
+  if (req.method === 'POST' && req.path === '/api/organizations') {
+    return next()
+  }
   
   authMiddleware.globalAuthChecker(req, res, next)
 })
