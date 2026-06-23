@@ -21,6 +21,18 @@ const PORT = process.env.PORT || 4000
 // Middleware
 app.use(express.json())
 
+// Normalize API paths to lowercase so /api/Organizations matches /api/organizations
+app.use((req, _res, next) => {
+  const queryIndex = req.url.indexOf('?')
+  const pathname = queryIndex === -1 ? req.url : req.url.slice(0, queryIndex)
+  const query = queryIndex === -1 ? '' : req.url.slice(queryIndex)
+  const normalized = pathname.toLowerCase()
+  if (normalized !== pathname) {
+    req.url = normalized + query
+  }
+  next()
+})
+
 // Serve static files for product images
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 
@@ -48,7 +60,7 @@ app.use((req, res, next) => {
   }
 
   // Organization signup — no auth required for creation
-  if (req.method === 'POST' && req.path === '/api/organizations') {
+  if (req.method === 'POST' && req.path.toLowerCase() === '/api/organizations') {
     return next()
   }
   

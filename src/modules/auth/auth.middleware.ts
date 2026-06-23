@@ -20,7 +20,7 @@ export class AuthMiddleware {
     // Check if current path matches any of the public routes
     const isPublic =
       this.publicRoutes.some(route => req.path.startsWith(route)) ||
-      (req.method === 'POST' && req.path === '/api/organizations')
+      (req.method === 'POST' && req.path.toLowerCase() === '/api/organizations')
 
     if (isPublic) {
       return next()
