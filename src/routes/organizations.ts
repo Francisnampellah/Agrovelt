@@ -65,7 +65,7 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-  router.post('/organizations', authMiddleware.authenticate, authMiddleware.authorize('SUPER_ADMIN'), organizationController.createValidation, organizationController.create)
+  router.post('/organizations', organizationController.createValidation, organizationController.create)
 
 /**
  * @swagger
