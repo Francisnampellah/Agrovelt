@@ -46,9 +46,12 @@ export class AuthService {
       }
     }
 
-    // Hash password
+    // Hash password when provided; Firebase-only users can omit it
     const saltRounds = 12
-    const passwordHash = await bcrypt.hash(password, saltRounds)
+    const passwordHash =
+      password !== undefined && password !== null && String(password).length > 0
+        ? await bcrypt.hash(String(password), saltRounds)
+        : null
 
     // Create user
     const user = await this.prisma.user.create({
