@@ -1,10 +1,15 @@
-import { Request, Response } from 'express'
+import { Response } from 'express'
 import { body, validationResult } from 'express-validator'
+import { AuthenticatedRequest } from '../auth/types'
+import { AuthService } from '../auth/auth.service'
 import { OrganizationService } from './organization.service'
 import { CreateOrganizationRequest, UpdateOrganizationRequest } from './types'
 
 export class OrganizationController {
-  constructor(private organizationService: OrganizationService) {}
+  constructor(
+    private organizationService: OrganizationService,
+    private authService: AuthService
+  ) {}
 
   createValidation = [
     body('name').trim().notEmpty().withMessage('Organization name is required').isLength({ min: 2, max: 100 }),
@@ -20,20 +25,33 @@ export class OrganizationController {
     body('phoneNumber').optional().trim()
   ]
 
-  create = async (req: Request, res: Response) => {
+  create = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' })
+      }
+
       const data: CreateOrganizationRequest = req.body
-      const org = await this.organizationService.createOrganization(data)
-      res.status(201).json({ data: org })
+      const result = await this.organizationService.createOrganizationForUser(req.user.userId, data)
+      const session = await this.authService.createSessionForUser(result.user.id)
+
+      res.status(201).json({
+        message: 'Organization created and linked to your account',
+        data: {
+          ...result,
+          token: session.token,
+          refreshToken: session.refreshToken
+        }
+      })
     } catch (error: any) {
       res.status(400).json({ error: error.message })
     }
   }
 
-  getAll = async (req: Request, res: Response) => {
+  getAll = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const orgs = await this.organizationService.getAllOrganizations()
       res.json({ data: orgs })
@@ -42,7 +60,7 @@ export class OrganizationController {
     }
   }
 
-  getById = async (req: Request, res: Response) => {
+  getById = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const org = await this.organizationService.getOrganizationById(String(req.params.id))
       res.json({ data: org })
@@ -51,7 +69,7 @@ export class OrganizationController {
     }
   }
 
-  update = async (req: Request, res: Response) => {
+  update = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })

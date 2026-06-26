@@ -128,6 +128,33 @@ export class AuthService {
     }
   }
 
+  async createSessionForUser(userId: string): Promise<Pick<AuthResponse, 'token' | 'refreshToken'>> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId }
+    })
+
+    if (!user || !user.isActive) {
+      throw new Error('User not found or inactive')
+    }
+
+    const token = this.generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    })
+
+    const refreshToken = this.generateRefreshToken()
+    await this.prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRES_IN_DAYS * 24 * 60 * 60 * 1000)
+      }
+    })
+
+    return { token, refreshToken }
+  }
+
   async login(data: LoginRequest): Promise<AuthResponse> {
     const { email, password } = data
 
@@ -213,20 +240,17 @@ export class AuthService {
       if (!user) {
         user = await this.prisma.user.create({
           data: {
-            firebaseUid: uid,
-            name: fbName || email.split('@')[0] || 'User',
             email,
-            role: localRole,
-            isActive: true
+            name: fbName?.trim() || email.split('@')[0],
+            firebaseUid: uid,
+            role: Role.STAFF
           },
           include: {
             shopsOwned: { select: { id: true } },
             staffIn: { select: { shopId: true } }
           }
         })
-      } else if (user.firebaseUid && user.firebaseUid !== uid) {
-        throw new Error('Email is already linked to a different Firebase account')
-      } else if (!user.firebaseUid || user.role !== localRole) {
+      } else if (!user.firebaseUid) {
         user = await this.prisma.user.update({
           where: { id: user.id },
           data: {
@@ -278,7 +302,7 @@ export class AuthService {
           name: user.name,
           email: user.email,
           role: user.role,
-          ...(user.organizationId ? { organizationId: user.organizationId } : {}),
+          organizationId: user.organizationId,
           shopScope
         }
       }

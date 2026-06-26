@@ -3,7 +3,11 @@
  * /api/organizations:
  *   post:
  *     tags: [Organizations]
- *     summary: Create a new organization (public)
+ *     summary: Create organization and link authenticated user
+ *     security: [{ bearerAuth: [] }]
+ *     description: |
+ *       Requires authentication. Users without an organization are linked as OWNER
+ *       when they create one.
  *     requestBody:
  *       required: true
  *       content:
@@ -22,7 +26,7 @@
  *                 type: string
  *     responses:
  *       201:
- *         description: Organization created
+ *         description: Organization created and user linked
  * 
  *   get:
  *     tags: [Organizations]
