@@ -38,9 +38,8 @@ export function createAuthRoutes(prisma: PrismaClient) {
    *                 example: john@example.com
    *               password:
    *                 type: string
-   *                 minLength: 8
-   *                 description: Must contain uppercase, lowercase, number, and special character
-   *                 example: SecurePass123!
+   *                 description: Same password used for Firebase login (no complexity rules)
+   *                 example: Password1
    *               role:
    *                 type: string
    *                 enum: [SUPER_ADMIN, ADMIN, OWNER, STAFF]

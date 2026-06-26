@@ -167,7 +167,7 @@ export class ProductController {
         return res.status(401).json({ error: 'Organization ID is required' })
       }
 
-      const rows = parseExcelFile((req as any).file.path)
+      const rows = await parseExcelFile((req as any).file.path)
       
       // Clean up uploaded file
       const fs = await import('fs').then(m => m.promises)
