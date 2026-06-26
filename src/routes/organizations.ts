@@ -15,8 +15,11 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
  *   post:
  *     summary: Create a new organization
  *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
  *     description: |
- *       Create a new organization/tenant in the system. No authentication required.
+ *       Authenticated users without an organization can create one.
+ *       The current user is automatically linked as OWNER.
  *     requestBody:
  *       required: true
  *       content:
@@ -41,22 +44,40 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
  *                 example: "+254712345678"
  *     responses:
  *       201:
- *         description: Organization created successfully
+ *         description: Organization created and linked to the authenticated user
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
+ *                 message:
+ *                   type: string
  *                 data:
- *                   $ref: '#/components/schemas/Organization'
+ *                   type: object
+ *                   properties:
+ *                     organization:
+ *                       $ref: '#/components/schemas/Organization'
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     token:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
  *       400:
  *         description: Invalid input
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Authentication required
  */
-  router.post('/organizations', organizationController.createValidation, organizationController.create)
+  router.post(
+    '/organizations',
+    authMiddleware.authenticate,
+    organizationController.createValidation,
+    organizationController.create
+  )
 
 /**
  * @swagger

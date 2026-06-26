@@ -18,9 +18,7 @@ export class AuthMiddleware {
 
   globalAuthChecker = (req: Request, res: Response, next: NextFunction) => {
     // Check if current path matches any of the public routes
-    const isPublic =
-      this.publicRoutes.some(route => req.path.startsWith(route)) ||
-      (req.method === 'POST' && req.path.toLowerCase() === '/api/organizations')
+    const isPublic = this.publicRoutes.some(route => req.path.startsWith(route))
 
     if (isPublic) {
       return next()

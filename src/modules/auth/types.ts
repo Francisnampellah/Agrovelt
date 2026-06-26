@@ -29,6 +29,7 @@ export interface TokenResponse {
     name: string
     email: string
     role: string
+    organizationId?: string | null
     shopScope?: string[]
   }
 }

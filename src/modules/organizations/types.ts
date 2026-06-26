@@ -20,3 +20,16 @@ export interface OrganizationResponse {
   phoneNumber: string | null
   createdAt: Date
 }
+
+export interface LinkedUserResponse {
+  id: string
+  name: string
+  email: string
+  role: string
+  organizationId: string | null
+}
+
+export interface CreateOrganizationForUserResponse {
+  organization: OrganizationResponse
+  user: LinkedUserResponse
+}
