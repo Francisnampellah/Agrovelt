@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { AuthService } from './auth.service'
 import { firebaseAuth } from '../../config/firebase'
 import { AuthenticatedRequest, JWTPayload } from './types'
+import { normalizeFirebaseGlobalRole } from './firebaseRoleMapping'
 
 export class AuthMiddleware {
   // Define public routes that don't require authentication
@@ -54,7 +55,8 @@ export class AuthMiddleware {
           const decodedFB = await firebaseAuth.verifyIdToken(token)
           
           // Check for globalRole if we want to enforce it here too
-          if (decodedFB.globalRole !== 'agrovelt') {
+          const firebaseGlobalRole = normalizeFirebaseGlobalRole(decodedFB.globalRole)
+          if (!firebaseGlobalRole) {
              return res.status(403).json({ error: 'Forbidden: Invalid domain claim' })
           }
 
@@ -73,7 +75,8 @@ export class AuthMiddleware {
           req.user = {
             userId: user.id,
             email: user.email,
-            role: user.role
+            role: user.role,
+            ...(user.organizationId ? { organizationId: user.organizationId } : {})
           }
           return next()
         } catch (fbError) {

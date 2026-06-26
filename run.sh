@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Agrovelt Production-Ready Setup Script
+# Agrovet Production-Ready Setup Script
 # This script installs Docker and Docker Compose (if missing) and runs the project.
 
 set -e
 
-echo "🚀 Starting Agrovelt setup..."
+echo "🚀 Starting Agrovet setup..."
 
 # 1. Check if Docker is installed
 if ! [ -x "$(command -v docker)" ]; then
@@ -49,12 +49,12 @@ echo "🧹 Pre-flight cleanup..."
 docker compose down --remove-orphans || true
 
 # 5. Build and Run
-echo "🏗️ Building and starting Agrovelt services..."
+echo "🏗️ Building and starting Agrovet services..."
 docker compose up --build -d
 
 echo ""
 echo "===================================================="
-echo "✨ Agrovelt is running!"
+echo "✨ Agrovet is running!"
 echo "📍 API: http://localhost:3000"
 echo "📖 Swagger: http://localhost:3000/api-docs"
 echo "🛠️ Prisma Studio: http://localhost:5555"

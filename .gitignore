@@ -6,6 +6,7 @@ dist/
 # Environment Variables
 .env
 firebase-credentials.json
+*-firebase-adminsdk-*.json
 
 # IDE Settings
 .vscode/

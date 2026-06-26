@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import express from 'express'
 import path from 'path'
 import cors from 'cors'
@@ -79,7 +80,7 @@ app.use('/api', createOrganizationRoutes(prisma))
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Agrovelt POS API running on port ${PORT}`)
+  console.log(`Agrovet POS API running on port ${PORT}`)
   console.log(`Swagger docs available at http://localhost:${PORT}/api-docs`)
 })
 

@@ -29,6 +29,7 @@ export interface TokenResponse {
     name: string
     email: string
     role: string
+    organizationId?: string
     shopScope?: string[]
   }
 }
@@ -39,6 +40,7 @@ export interface AuthResponse {
     name: string
     email: string
     role: string
+    organizationId?: string
   }
   token: string
   refreshToken: string
@@ -48,6 +50,7 @@ export interface JWTPayload {
   userId: string
   email: string
   role: string
+  organizationId?: string
   iat?: number
   exp?: number
 }

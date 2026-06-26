@@ -29,7 +29,7 @@ export FIREBASE_CREDENTIALS='{"type":"service_account",...}'
 ### 3. Environment Setup
 ```bash
 # .env file
-DATABASE_URL=postgresql://user:password@localhost:5432/agrovelt
+DATABASE_URL=postgresql://user:password@localhost:5432/agrovet
 FIREBASE_CREDENTIALS='{"type":"service_account",...}'
 PORT=3000
 ```

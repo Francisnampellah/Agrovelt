@@ -220,7 +220,7 @@ enum Role {
   "role": "STAFF",
   "iat": 1704067200,
   "exp": 1704070800,
-  "iss": "agrovelt-pos"
+  "iss": "agrovet-pos"
 }
 ```
 
@@ -231,7 +231,7 @@ enum Role {
   "type": "refresh",
   "iat": 1704067200,
   "exp": 1704672000,
-  "iss": "agrovelt-pos"
+  "iss": "agrovet-pos"
 }
 ```
 

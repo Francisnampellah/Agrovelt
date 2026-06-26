@@ -16,6 +16,18 @@ const getCredentials = () => {
       return null
     }
   }
+
+  if (process.env.FIREBASE_CREDENTIALS_FILE) {
+    try {
+      const credPath = path.resolve(process.cwd(), process.env.FIREBASE_CREDENTIALS_FILE)
+      if (fs.existsSync(credPath)) {
+        return JSON.parse(fs.readFileSync(credPath, 'utf8'))
+      }
+      console.error(`❌ FIREBASE_CREDENTIALS_FILE not found: ${credPath}`)
+    } catch (e) {
+      console.error('❌ Error reading FIREBASE_CREDENTIALS_FILE')
+    }
+  }
   
   try {
     const credPath = path.join(__dirname, '../../firebase-credentials.json')

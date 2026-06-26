@@ -3,12 +3,12 @@ export function getSwaggerConfig(port: number | string) {
     definition: {
       openapi: '3.0.0',
       info: {
-        title: 'Agrovelt POS API',
+        title: 'Agrovet POS API',
         version: '1.0.0',
         description: 'Multi-shop Point of Sale system for agricultural retail management. Supports multi-tenancy, inventory management, sales, and comprehensive reporting.',
         contact: {
-          name: 'Agrovelt Support',
-          email: 'support@agrovelt.com'
+          name: 'Agrovet Support',
+          email: 'support@agrovet.com'
         }
       },
       servers: [
@@ -17,7 +17,7 @@ export function getSwaggerConfig(port: number | string) {
           description: 'Development server',
         },
         {
-          url: 'https://api.agrovelt.com',
+          url: 'https://api.agrovet.com',
           description: 'Production server',
         }
       ],

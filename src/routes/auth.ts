@@ -122,7 +122,7 @@ export function createAuthRoutes(prisma: PrismaClient) {
    *             properties:
    *               firebaseToken:
    *                 type: string
-   *                 description: Valid Firebase ID token with 'agrovelt' globalRole claim
+   *                 description: Valid Firebase ID token with 'agrovet' globalRole claim
    *               clientType:
    *                 type: string
    *                 enum: [web, mobile]

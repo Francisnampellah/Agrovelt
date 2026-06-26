@@ -1,8 +1,8 @@
-# Agrovelt POS API - Comprehensive UI Implementation Guide
+# Agrovet POS API - Comprehensive UI Implementation Guide
 
 ## Executive Summary
 
-Agrovelt is a multi-tenant, role-based Point of Sale (POS) system designed for agricultural retail management. This document provides comprehensive guidance for UI designers implementing interfaces against this API.
+Agrovet is a multi-tenant, role-based Point of Sale (POS) system designed for agricultural retail management. This document provides comprehensive guidance for UI designers implementing interfaces against this API.
 
 **Key Architecture**: Multi-tenancy with three-tier role hierarchy (SUPER_ADMIN → Organization Users) and subsidiary role-based access control (ADMIN, OWNER, STAFF).
 
@@ -14,7 +14,7 @@ Agrovelt is a multi-tenant, role-based Point of Sale (POS) system designed for a
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              AGROVELT SYSTEM                             │
+│              AGROVET SYSTEM                             │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐  │

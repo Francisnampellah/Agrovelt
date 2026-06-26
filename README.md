@@ -1,4 +1,4 @@
-# Agrovelt - Multi-Shop POS System
+# Agrovet - Multi-Shop POS System
 
 A production-grade Point of Sale (POS) system designed for multi-shop operations, built with Node.js, TypeScript, Prisma, and PostgreSQL.
 
@@ -52,7 +52,7 @@ prisma/
 
 1. **Clone and navigate to the project**
    ```bash
-   cd agrovelt
+   cd agrovet
    ```
 
 2. **Start services**
@@ -176,7 +176,7 @@ npm run prisma:studio   # Open Prisma Studio for database management
 Create a `.env` file:
 
 ```env
-DATABASE_URL="postgresql://username:password@localhost:5432/agrovelt?schema=public"
+DATABASE_URL="postgresql://username:password@localhost:5432/agrovet?schema=public"
 PORT=3000
 JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
 JWT_EXPIRES_IN="24h"

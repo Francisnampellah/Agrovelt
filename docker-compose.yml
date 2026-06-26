@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: agrovelt_app
+    container_name: agrovet_app
     restart: unless-stopped
     ports:
       - "4000:4000"
@@ -25,14 +25,14 @@ services:
 
   db:
     image: postgres:15-alpine
-    container_name: agrovelt_db
+    container_name: agrovet_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: johndoe
       POSTGRES_PASSWORD: randompassword
       POSTGRES_DB: mydb
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -45,7 +45,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: agrovelt_prisma
+    container_name: agrovet_prisma
     command: npx prisma studio --port 5555 --browser none
     ports:
       - "5555:5555"

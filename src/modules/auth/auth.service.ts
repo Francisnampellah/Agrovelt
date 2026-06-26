@@ -4,10 +4,32 @@ import crypto from 'crypto'
 import { PrismaClient, Role } from '@prisma/client'
 import { firebaseAuth } from '../../config/firebase'
 import { LoginRequest, RegisterRequest, AuthResponse, JWTPayload, ExchangeRequest, TokenResponse } from './types'
+import { mapFirebaseGlobalRoleToAgrovetRole, normalizeFirebaseGlobalRole } from './firebaseRoleMapping'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-const JWT_EXPIRES_IN = '15m' // Short-lived access token
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m'
+const JWT_EXPIRES_IN_SECONDS = parseExpiresInSeconds(JWT_EXPIRES_IN)
 const REFRESH_TOKEN_EXPIRES_IN_DAYS = 7 // Long-lived refresh token
+
+function parseExpiresInSeconds(value: string): number {
+  const match = value.trim().match(/^(\d+)([smhd])?$/i)
+  if (!match) return 15 * 60
+
+  const amount = Number(match[1] ?? 0)
+  const unit = (match[2] ?? 's').toLowerCase()
+
+  switch (unit) {
+    case 'd':
+      return amount * 24 * 60 * 60
+    case 'h':
+      return amount * 60 * 60
+    case 'm':
+      return amount * 60
+    case 's':
+    default:
+      return amount
+  }
+}
 
 export class AuthService {
   constructor(private prisma: PrismaClient) {}
@@ -64,6 +86,7 @@ export class AuthService {
         name: true,
         email: true,
         role: true,
+        organizationId: true,
         createdAt: true
       }
     })
@@ -72,7 +95,8 @@ export class AuthService {
     const token = this.generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      ...(user.organizationId ? { organizationId: user.organizationId } : {})
     })
 
     // Generate and store refresh token
@@ -93,7 +117,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        ...(user.organizationId ? { organizationId: user.organizationId } : {})
       },
       token,
       refreshToken
@@ -126,7 +151,8 @@ export class AuthService {
     const token = this.generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      ...(user.organizationId ? { organizationId: user.organizationId } : {})
     })
 
     // Generate and store refresh token
@@ -147,7 +173,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        ...(user.organizationId ? { organizationId: user.organizationId } : {})
       },
       token,
       refreshToken
@@ -162,14 +189,16 @@ export class AuthService {
       const decodedToken = await firebaseAuth.verifyIdToken(firebaseToken)
       
       // 2. Check globalRole claim
-      if (decodedToken.globalRole !== 'agrovelt') {
+      const firebaseGlobalRole = normalizeFirebaseGlobalRole(decodedToken.globalRole)
+      if (!firebaseGlobalRole) {
         throw new Error('Unauthorized: Invalid domain claim')
       }
+      const localRole = mapFirebaseGlobalRoleToAgrovetRole(firebaseGlobalRole)
 
       const { uid, email, name: fbName } = decodedToken
       if (!email) throw new Error('Firebase token missing email')
 
-      // 3. Upsert/find Agrovelt user in Prisma
+      // 3. Upsert/find Agrovet user in Prisma
       let user = await this.prisma.user.findUnique({
         where: { email },
         include: {
@@ -179,13 +208,28 @@ export class AuthService {
       })
 
       if (!user) {
-        // Do not auto-provision users without organization context.
-        // Require that users are created/assigned to an organization beforehand.
-        throw new Error('User not provisioned. Please register through the organization.')
-      } else if (!user.firebaseUid) {
+        user = await this.prisma.user.create({
+          data: {
+            firebaseUid: uid,
+            name: fbName || email.split('@')[0] || 'User',
+            email,
+            role: localRole,
+            isActive: true
+          },
+          include: {
+            shopsOwned: { select: { id: true } },
+            staffIn: { select: { shopId: true } }
+          }
+        })
+      } else if (user.firebaseUid && user.firebaseUid !== uid) {
+        throw new Error('Email is already linked to a different Firebase account')
+      } else if (!user.firebaseUid || user.role !== localRole) {
         user = await this.prisma.user.update({
           where: { id: user.id },
-          data: { firebaseUid: uid },
+          data: {
+            firebaseUid: user.firebaseUid || uid,
+            role: localRole
+          },
           include: {
             shopsOwned: { select: { id: true } },
             staffIn: { select: { shopId: true } }
@@ -207,7 +251,8 @@ export class AuthService {
       const accessToken = this.generateToken({
         userId: user.id,
         email: user.email,
-        role: user.role
+        role: user.role,
+        ...(user.organizationId ? { organizationId: user.organizationId } : {})
       })
 
       const refreshToken = this.generateRefreshToken()
@@ -224,12 +269,13 @@ export class AuthService {
       return {
         accessToken,
         refreshToken,
-        expiresIn: 15 * 60, // 15 minutes in seconds
+        expiresIn: JWT_EXPIRES_IN_SECONDS,
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          ...(user.organizationId ? { organizationId: user.organizationId } : {}),
           shopScope
         }
       }
@@ -246,6 +292,7 @@ export class AuthService {
         name: true,
         email: true,
         role: true,
+        organizationId: true,
         isActive: true,
         createdAt: true,
         shopsOwned: {
@@ -434,7 +481,7 @@ export class AuthService {
     await this.logActivity(userId, 'LOGOUT', 'User', userId)
   }
 
-  async refreshTokens(refreshToken: string, deviceId?: string): Promise<{ token: string, refreshToken: string }> {
+  async refreshTokens(refreshToken: string, deviceId?: string): Promise<{ accessToken: string, token: string, refreshToken: string, expiresIn: number }> {
     // Find refresh token
     const tokenRecord = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
@@ -473,7 +520,8 @@ export class AuthService {
     const newAccessToken = this.generateToken({
       userId: tokenRecord.user.id,
       email: tokenRecord.user.email,
-      role: tokenRecord.user.role
+      role: tokenRecord.user.role,
+      ...(tokenRecord.user.organizationId ? { organizationId: tokenRecord.user.organizationId } : {})
     })
 
     // Generate and store new refresh token
@@ -491,8 +539,10 @@ export class AuthService {
     await this.logActivity(tokenRecord.user.id, 'REFRESH_TOKEN', 'User', tokenRecord.user.id)
 
     return {
+      accessToken: newAccessToken,
       token: newAccessToken,
-      refreshToken: newRefreshToken
+      refreshToken: newRefreshToken,
+      expiresIn: JWT_EXPIRES_IN_SECONDS
     }
   }
 

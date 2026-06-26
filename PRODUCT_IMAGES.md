@@ -1,6 +1,6 @@
 # Product Image Upload Feature
 
-This document describes how product images are handled in the Agrovelt POS system.
+This document describes how product images are handled in the Agrovet POS system.
 
 ## Overview
 
@@ -244,7 +244,7 @@ To clear uploaded images:
 rm -rf uploads/
 
 # Or in Docker
-docker volume rm agrovelt_uploads
+docker volume rm agrovet_uploads
 ```
 
 Images will be re-created as new files are uploaded.

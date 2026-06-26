@@ -5,16 +5,16 @@ What you want is a **token exchange pattern**:
 1. Mobile/Web signs in directly with Firebase.
 2. Client gets Firebase ID token.
 3. Client calls your custom backend endpoint (example: `POST /api/auth/exchange`).
-4. Backend verifies Firebase token and checks user domain claim (`globalRole === 'agrovelt'`).
-5. If valid, backend issues **its own API tokens** (access + refresh) for Agrovelt APIs.
+4. Backend verifies Firebase token and checks user domain claim (`globalRole === 'agrovet'`).
+5. If valid, backend issues **its own API tokens** (access + refresh) for Agrovet APIs.
 
 Important point: backend should provide **tokens**, not raw “credentials” (never passwords/secrets).
 
 ## Recommended design
 
 1. Use Firebase as identity proof only.
-2. Use your backend as authorization issuer for Agrovelt domain.
-3. Keep Agrovelt sub-roles (`ADMIN`, `OWNER`, `STAFF`) in your DB.
+2. Use your backend as authorization issuer for Agrovet domain.
+3. Keep Agrovet sub-roles (`ADMIN`, `OWNER`, `STAFF`) in your DB.
 4. Return backend tokens with role + tenant/shop context.
 5. Create refresh token rotation per device/client.
 
@@ -36,9 +36,9 @@ Input:
 
 Backend checks:
 1. Verify Firebase signature and expiry.
-2. Check `globalRole` is Agrovelt.
-3. Upsert/find Agrovelt user in Prisma.
-4. Resolve Agrovelt sub-role and active status.
+2. Check `globalRole` is Agrovet.
+3. Upsert/find Agrovet user in Prisma.
+4. Resolve Agrovet sub-role and active status.
 5. Issue backend JWT access token (short TTL, e.g. 15m).
 6. Issue opaque refresh token (long TTL, e.g. 7-30d, rotated each refresh).
 
@@ -62,7 +62,7 @@ Output:
 2. Bind refresh token to device fingerprint/client type.
 3. Add rate limits on `exchange` and `refresh`.
 4. Log auth events with correlation IDs.
-5. Consider custom claims only for coarse domain (`agrovelt`), keep fine-grained roles in DB.
+5. Consider custom claims only for coarse domain (`agrovet`), keep fine-grained roles in DB.
 
 If you want, I can implement this endpoint flow in your current codebase next:
 1. `POST /api/auth/exchange`
