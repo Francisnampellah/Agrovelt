@@ -46,7 +46,7 @@ export class PricingService {
           shopId: params.shopId,
           variantId: params.variantId,
           sellingPrice: params.newPrice,
-          minSellingPrice: params.minSellingPrice,
+          ...(params.minSellingPrice !== undefined && { minSellingPrice: params.minSellingPrice }),
           updatedBy: params.changedBy
         }
       })
@@ -60,7 +60,7 @@ export class PricingService {
             priceType: 'SELLING',
             oldPrice: existing?.sellingPrice ?? 0,
             newPrice: params.newPrice,
-            reason: params.reason,
+            ...(params.reason !== undefined && { reason: params.reason }),
             changedBy: params.changedBy
           }
         })
