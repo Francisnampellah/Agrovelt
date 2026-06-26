@@ -1,12 +1,11 @@
 import { PrismaClient } from '@prisma/client'
-import { BulkImportResult, ExcelValidationError, validateRequiredFields, validateFieldType, normalizeRow } from '../../utils/excelParser'
+import { BulkImportResult, ExcelValidationError, validateRequiredFields, validateFieldType } from '../../utils/excelParser'
 import { CreateProductRequest } from './types'
 
 export interface BulkProductRow {
   name: string
   description?: string
   categoryName?: string
-  organizationId: string
   unit?: string
   dosageInfo?: string
   manufacturer?: string
@@ -16,19 +15,12 @@ export interface BulkProductRow {
 export class BulkProductService {
   constructor(private prisma: PrismaClient) {}
 
-  /**
-   * Validate a single product row
-   */
-  private validateProductRow(row: any, rowIndex: number, organizationId: string): ExcelValidationError[] {
+  private validateProductRow(row: any, rowIndex: number): ExcelValidationError[] {
     const errors: ExcelValidationError[] = []
 
-    // Required fields
     errors.push(...validateRequiredFields(row, rowIndex, ['name']))
-
-    // Field types
     errors.push(...validateFieldType(row, rowIndex, 'name', 'string', { min: 1, max: 255 }))
 
-    // Optional fields validation
     if (row.description) {
       errors.push(...validateFieldType(row, rowIndex, 'description', 'string', { max: 2000 }))
     }
@@ -40,10 +32,7 @@ export class BulkProductService {
     return errors
   }
 
-  /**
-   * Process a single product row and resolve category
-   */
-  private async processProductRow(row: BulkProductRow, organizationId: string): Promise<CreateProductRequest> {
+  private async processProductRow(row: BulkProductRow): Promise<CreateProductRequest> {
     let categoryId: string | undefined
 
     if (row.categoryName) {
@@ -51,17 +40,14 @@ export class BulkProductService {
         where: { name: { mode: 'insensitive', equals: row.categoryName } }
       })
       categoryId = category?.id
-      // Note: If category doesn't exist, we don't fail; categoryId stays undefined
     }
 
-    const isRestricted = typeof row.isRestricted === 'string' 
+    const isRestricted = typeof row.isRestricted === 'string'
       ? row.isRestricted.toLowerCase() === 'true' || row.isRestricted === '1'
       : Boolean(row.isRestricted)
 
-    // Refactored to omit undefined fields to support exactOptionalPropertyTypes: true
     return {
       name: row.name,
-      organizationId,
       isRestricted,
       ...(row.description !== undefined && { description: row.description }),
       ...(categoryId !== undefined && { categoryId }),
@@ -71,27 +57,22 @@ export class BulkProductService {
     }
   }
 
-  /**
-   * Bulk import products from parsed Excel data
-   */
   async bulkImportProducts(
     rows: any[],
-    organizationId: string,
     dryRun: boolean = false
   ): Promise<BulkImportResult<any>> {
     const errors: ExcelValidationError[] = []
     const successData: CreateProductRequest[] = []
 
-    // Validate all rows first
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
-      const rowErrors = this.validateProductRow(row, i, organizationId)
-      
+      const rowErrors = this.validateProductRow(row, i)
+
       if (rowErrors.length > 0) {
         errors.push(...rowErrors)
       } else {
         try {
-          const processedRow = await this.processProductRow(row, organizationId)
+          const processedRow = await this.processProductRow(row)
           successData.push(processedRow)
         } catch (error: any) {
           errors.push({
@@ -104,7 +85,6 @@ export class BulkProductService {
       }
     }
 
-    // If dry run or there are errors, return early
     if (dryRun || errors.length > 0) {
       return {
         success: errors.length === 0,
@@ -116,11 +96,10 @@ export class BulkProductService {
       }
     }
 
-    // Process successful rows with transaction
     let createdProducts = 0
     try {
       const results = await this.prisma.$transaction(
-        successData.map(data => 
+        successData.map(data =>
           this.prisma.product.create({
             data,
             include: { category: true }

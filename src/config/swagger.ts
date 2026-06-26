@@ -98,7 +98,6 @@ export function getSwaggerConfig(port: number | string) {
               id: { type: 'string', format: 'uuid' },
               name: { type: 'string' },
               description: { type: 'string', nullable: true },
-              organizationId: { type: 'string', format: 'uuid' },
               categoryId: { type: 'string', format: 'uuid', nullable: true },
               unit: { type: 'string', nullable: true, description: 'e.g., kg, liter, piece' },
               dosageInfo: { type: 'string', nullable: true, description: 'Dosage information for drugs/pesticides' },

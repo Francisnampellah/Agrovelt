@@ -120,8 +120,7 @@ router.post('/categories', authMiddleware.authenticate, productController.catego
  *     security:
  *       - bearerAuth: []
  *     description: |
- *       Retrieve all products. Organization users see only their organization's products.
- *       SUPER_ADMIN users see all products.
+ *       Retrieve all products from the global shared catalog.
  *     responses:
  *       200:
  *         description: List of products
@@ -185,15 +184,14 @@ router.get('/products/:id', authMiddleware.authenticate, productController.getPr
  *     security:
  *       - bearerAuth: []
  *     description: |
- *       Create a new product. Can optionally include an image in multipart/form-data.
- *       Authenticated user must belong to the specified organization.
+ *       Create a new product in the global shared catalog. Can optionally include an image in multipart/form-data.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, organizationId]
+ *             required: [name]
  *             properties:
  *               name:
  *                 type: string
@@ -203,10 +201,6 @@ router.get('/products/:id', authMiddleware.authenticate, productController.getPr
  *                 type: string
  *                 nullable: true
  *                 example: High quality NPK fertilizer for agriculture
- *               organizationId:
- *                 type: string
- *                 format: uuid
- *                 example: 123e4567-e89b-12d3-a456-426614174000
  *               categoryId:
  *                 type: string
  *                 format: uuid

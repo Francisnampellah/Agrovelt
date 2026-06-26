@@ -17,85 +17,130 @@ export class SaleService {
     await this.inventoryService.assertSameOrg(data.shopId, variantIds)
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. Calculate price and stock first
-      let computedTotalAmount = 0
+      let subtotal = 0
+      const resolvedItems: Array<{
+        variantId: string
+        quantity: number
+        price: number
+        batchNumber: string
+      }> = []
+
       for (const item of data.items) {
-        // Resolve selling price with fallback
-        if (item.price === undefined) {
-          const pricing = await this.pricingService.getSellingPrice(data.shopId, item.variantId, tx)
-          if (!pricing || !pricing.sellingPrice) {
-            throw new Error(`Cannot resolve pricing for variant ${item.variantId}`)
-          }
-          item.price = Number(pricing.sellingPrice)
+        let price = item.price
+        if (price === undefined) {
+          price = await this.pricingService.resolveSellingPrice(data.shopId, item.variantId)
+        } else {
+          await this.pricingService.validateSalePrice(data.shopId, item.variantId, price)
         }
 
-        computedTotalAmount += item.quantity * item.price
-
-        // 2. Deduct Inv using service boundary
-        await this.inventoryService.deductSaleStock({
-          shopId: data.shopId,
+        const batchNumber = item.batchNumber ?? 'DEFAULT'
+        subtotal += item.quantity * price
+        resolvedItems.push({
           variantId: item.variantId,
-          batchNumber: item.batchNumber ?? 'DEFAULT',
           quantity: item.quantity,
-          saleId: 'TBD'
-        }, tx)
+          price,
+          batchNumber
+        })
       }
 
-      const totalAmount = data.totalAmount ?? computedTotalAmount
+      const discount = data.discount ?? 0
+      const tax = data.tax ?? 0
+      const total = data.total ?? (subtotal - discount + tax)
 
-      // 3. Create Sale Record
       const sale = await tx.sale.create({
         data: {
           shopId: data.shopId,
-          customerId: data.customerId,
-          totalAmount,
-          method: data.method,
-          status: data.paymentStatus === 'PAID' ? SaleStatus.COMPLETED : SaleStatus.PENDING,
-          createdBy: data.createdBy,
+          subtotal,
+          discount,
+          tax,
+          total,
+          status: SaleStatus.COMPLETED,
+          createdBy: data.createdBy
         }
       })
 
-      // 4. Create Sale Items and update inventory transaction links
-      for (const item of data.items) {
+      for (const item of resolvedItems) {
         await tx.saleItem.create({
           data: {
             saleId: sale.id,
             variantId: item.variantId,
-            batchNumber: item.batchNumber ?? 'DEFAULT',
+            batchNumber: item.batchNumber,
             quantity: item.quantity,
-            price: item.price!
+            price: item.price
           }
         })
-      }
 
-      // Hack to patch inventory deduction referenceId (since we didn't know the saleId during deduct)
-      await tx.inventoryTransaction.updateMany({
-        where: { shopId: data.shopId, referenceId: 'TBD', type: 'SALE' },
-        data: { referenceId: sale.id }
-      })
-
-      // 5. Register Cashflow if paid
-      if (data.paymentStatus === 'PAID') {
-        await this.cashFlowService.recordInflow({
+        await this.inventoryService.deductSaleStock({
           shopId: data.shopId,
-          amount: totalAmount,
-          category: 'SALES',
-          referenceId: sale.id,
-          description: `Sale #${sale.id}`,
-          createdBy: data.createdBy
+          variantId: item.variantId,
+          batchNumber: item.batchNumber,
+          quantity: item.quantity,
+          saleId: sale.id
         }, tx)
       }
 
-      return sale
+      await tx.payment.create({
+        data: {
+          saleId: sale.id,
+          amount: total,
+          method: data.paymentMethod
+        }
+      })
+
+      await this.cashFlowService.record(tx, {
+        shopId: data.shopId,
+        direction: 'IN',
+        category: 'SALE',
+        amount: total,
+        referenceId: sale.id,
+        note: `Sale #${sale.id}`,
+        recordedBy: data.createdBy
+      })
+
+      return tx.sale.findUnique({
+        where: { id: sale.id },
+        include: {
+          items: { include: { variant: { include: { product: true } } } },
+          payments: true
+        }
+      })
     })
+  }
+
+  async getSalesByShop(shopId: string) {
+    return this.prisma.sale.findMany({
+      where: { shopId },
+      include: {
+        items: { include: { variant: { include: { product: true } } } },
+        payments: true
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+  }
+
+  async getSaleById(saleId: string) {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id: saleId },
+      include: {
+        items: { include: { variant: { include: { product: true } } } },
+        payments: true
+      }
+    })
+
+    if (!sale) {
+      throw new Error('Sale not found')
+    }
+
+    return sale
   }
 
   async refundSale(saleId: string, refundedBy: string) {
     return this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({
         where: { id: saleId },
-        include: { items: true }
+        include: { items: true, payments: true }
       })
+
       if (!sale) throw new Error('Sale not found')
       if (sale.status === SaleStatus.REFUNDED) throw new Error('Already refunded')
 
@@ -108,22 +153,29 @@ export class SaleService {
         await this.inventoryService.restoreRefundStock({
           shopId: sale.shopId,
           variantId: item.variantId,
-          batchNumber: item.batchNumber,
+          batchNumber: item.batchNumber ?? 'DEFAULT',
           quantity: item.quantity,
           saleId: sale.id
         }, tx)
       }
 
-      await this.cashFlowService.recordOutflow({
+      await this.cashFlowService.record(tx, {
         shopId: sale.shopId,
-        amount: Number(sale.totalAmount),
-        category: 'REFUNDS',
+        direction: 'OUT',
+        category: 'REFUND',
+        amount: sale.total,
         referenceId: sale.id,
-        description: `Refund for sale #${sale.id}`,
-        createdBy: refundedBy
-      }, tx)
+        note: `Refund for sale #${sale.id}`,
+        recordedBy: refundedBy
+      })
 
-      return sale
+      return tx.sale.findUnique({
+        where: { id: saleId },
+        include: {
+          items: { include: { variant: { include: { product: true } } } },
+          payments: true
+        }
+      })
     })
   }
 }

@@ -35,26 +35,18 @@ export class InventoryService {
     const shop = await db.shop.findUnique({ where: { id: shopId } })
     if (!shop) throw new Error(`Shop ${shopId} not found`)
 
-    // Unique variant IDs to avoid redundant lookups
     const uniqueIds = [...new Set(variantIds)]
-
-    const variants = await db.productVariant.findMany({
-      where: { id: { in: uniqueIds } },
-      include: { product: true }
+    const count = await db.productVariant.count({
+      where: { id: { in: uniqueIds } }
     })
 
-    const foreignVariant = variants.find(v => v.product.organizationId !== shop.organizationId)
-    if (foreignVariant) {
-      throw new Error(
-        `Variant ${foreignVariant.id} does not belong to organization ${shop.organizationId}`
-      )
+    if (count !== uniqueIds.length) {
+      throw new Error('One or more product variants not found')
     }
   }
 
   async updateInventory(data: UpdateInventoryRequest, tx?: TxClient) {
     const { shopId, variantId, batchNumber = 'DEFAULT', expiryDate, quantity, costPrice } = data
-
-    await this.assertSameOrg(shopId, [variantId], tx)
 
     return this.db(tx).inventory.upsert({
       where: {
@@ -136,7 +128,6 @@ export class InventoryService {
     },
     tx?: TxClient
   ): Promise<void> {
-    await this.assertSameOrg(data.shopId, [data.variantId], tx)
     const db = this.db(tx)
 
     const result = await db.inventory.updateMany({
@@ -177,7 +168,6 @@ export class InventoryService {
     },
     tx?: TxClient
   ): Promise<void> {
-    await this.assertSameOrg(data.shopId, [data.variantId], tx)
     const db = this.db(tx)
 
     await db.inventory.update({
@@ -206,7 +196,6 @@ export class InventoryService {
   async adjustInventory(data: AdjustInventoryRequest & { costPrice?: number }, tx?: TxClient) {
     const { shopId, variantId, batchNumber = 'DEFAULT', change, type, referenceId, costPrice } = data
     
-    await this.assertSameOrg(shopId, [variantId], tx)
     const db = this.db(tx)
 
     if (change < 0) {

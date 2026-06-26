@@ -44,16 +44,13 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, organizationId]
+ *             required: [name]
  *             properties:
  *               name:
  *                 type: string
  *               description:
  *                 type: string
  *               categoryId:
- *                 type: string
- *                 format: uuid
- *               organizationId:
  *                 type: string
  *                 format: uuid
  *               unit:
@@ -125,7 +122,7 @@
  *       Upload an Excel file (.xlsx) with product data for bulk import.
  *       Supports dry-run mode to validate without persisting.
  *       
- *       Expected columns: name, description, categoryName, organizationId, unit, dosageInfo, manufacturer, isRestricted
+ *       Expected columns: name, description, categoryName, unit, dosageInfo, manufacturer, isRestricted
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - name: dryRun

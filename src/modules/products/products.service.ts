@@ -46,9 +46,8 @@ export class ProductService {
     })
   }
 
-  async getAllProducts(organizationId?: string) {
+  async getAllProducts() {
     return this.prisma.product.findMany({
-      where: organizationId ? { organizationId } : {},
       include: { 
         category: true,
         variants: true

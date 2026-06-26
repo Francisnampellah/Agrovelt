@@ -63,7 +63,6 @@ model Organization {
   // Core entities strictly isolated per organization
   users     User[]
   shops     Shop[]
-  products  Product[]
   suppliers Supplier[]
 }
 
@@ -174,9 +173,8 @@ model Category {
 }
 
 model Product {
-  id             String  @id @default(uuid())
-  organizationId String
-  categoryId     String?
+  id         String  @id @default(uuid())
+  categoryId String?
 
   name        String
   description String?
@@ -194,9 +192,8 @@ model Product {
 
   createdAt DateTime @default(now())
 
-  organization Organization     @relation(fields: [organizationId], references: [id])
-  category     Category?        @relation(fields: [categoryId], references: [id])
-  variants     ProductVariant[]
+  category Category?        @relation(fields: [categoryId], references: [id])
+  variants ProductVariant[]
 }
 
 model ProductVariant {

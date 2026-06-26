@@ -19,7 +19,6 @@ export class ProductController {
     body('name').trim().notEmpty().withMessage('Product name is required'),
     body('description').optional().trim(),
     body('categoryId').optional().isUUID().withMessage('Invalid category ID'),
-    body('organizationId').isUUID().withMessage('Valid organization ID is required'),
     body('unit').optional().isString(),
     body('dosageInfo').optional().isString(),
     body('manufacturer').optional().isString(),
@@ -85,10 +84,9 @@ export class ProductController {
     }
   }
 
-  getAllProducts = async (req: Request, res: Response) => {
+  getAllProducts = async (_req: Request, res: Response) => {
     try {
-      const organizationId = (req as any).user?.organizationId
-      const products = await this.productService.getAllProducts(organizationId)
+      const products = await this.productService.getAllProducts()
       res.json({ data: products })
     } catch (error: any) {
       res.status(500).json({ error: error.message })
@@ -161,11 +159,6 @@ export class ProductController {
       }
 
       const dryRun = String(req.query.dryRun) === 'true'
-      const organizationId = (req as any).user?.organizationId
-      
-      if (!organizationId) {
-        return res.status(401).json({ error: 'Organization ID is required' })
-      }
 
       const rows = await parseExcelFile((req as any).file.path)
       
@@ -173,7 +166,7 @@ export class ProductController {
       const fs = await import('fs').then(m => m.promises)
       await fs.unlink((req as any).file.path).catch(() => {})
 
-      const result = await this.bulkProductService.bulkImportProducts(rows, organizationId, dryRun)
+      const result = await this.bulkProductService.bulkImportProducts(rows, dryRun)
       
       const statusCode = result.success ? 200 : 400
       res.status(statusCode).json(result)
