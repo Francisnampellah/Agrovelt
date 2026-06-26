@@ -70,10 +70,9 @@ router.get('/users', authMiddleware.authenticate, authMiddleware.authorize('ADMI
  *                 type: string
  *                 format: email
  *                 example: john.smith@example.com
- *               password:
- *                 type: string
- *                 minLength: 8
- *                 description: Must contain uppercase, lowercase, number, and special character
+   *               password:
+   *                 type: string
+   *                 description: Same password used for Firebase login (no complexity rules)
  *               role:
  *                 type: string
  *                 enum: [SUPER_ADMIN, ADMIN, OWNER, STAFF]

@@ -77,7 +77,7 @@ export class InventoryController {
       }
 
       const dryRun = String(req.query.dryRun) === 'true'
-      const rows = parseExcelFile((req as any).file.path)
+      const rows = await parseExcelFile((req as any).file.path)
       const user = (req as any).user
 
       if (!user) {
@@ -109,7 +109,7 @@ export class InventoryController {
       }
 
       const dryRun = String(req.query.dryRun) === 'true'
-      const rows = parseExcelFile((req as any).file.path)
+      const rows = await parseExcelFile((req as any).file.path)
       const user = (req as any).user
 
       if (!user) {
