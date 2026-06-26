@@ -3,8 +3,7 @@
  * /api/organizations:
  *   post:
  *     tags: [Organizations]
- *     summary: Create a new organization
- *     security: [{ bearerAuth: [] }]
+ *     summary: Create a new organization (public)
  *     requestBody:
  *       required: true
  *       content:
@@ -24,8 +23,6 @@
  *     responses:
  *       201:
  *         description: Organization created
- *       401:
- *         description: Unauthorized
  * 
  *   get:
  *     tags: [Organizations]

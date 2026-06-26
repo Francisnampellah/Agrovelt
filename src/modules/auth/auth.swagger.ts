@@ -24,7 +24,6 @@
  *                 format: email
  *               password:
  *                 type: string
- *                 minLength: 6
  *               role:
  *                 type: string
  *                 enum: [ADMIN, OWNER, STAFF]

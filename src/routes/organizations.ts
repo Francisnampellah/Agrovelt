@@ -15,11 +15,8 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
  *   post:
  *     summary: Create a new organization
  *     tags: [Organizations]
- *     security:
- *       - bearerAuth: []
  *     description: |
- *       **SUPER_ADMIN only** - Create a new organization/tenant in the system.
- *       Only users with SUPER_ADMIN role can create organizations.
+ *       Create a new organization/tenant in the system. No authentication required.
  *     requestBody:
  *       required: true
  *       content:
@@ -58,14 +55,8 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
- *       403:
- *         description: SUPER_ADMIN role required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
-  router.post('/organizations', authMiddleware.authenticate, authMiddleware.authorize('SUPER_ADMIN'), organizationController.createValidation, organizationController.create)
+  router.post('/organizations', organizationController.createValidation, organizationController.create)
 
 /**
  * @swagger
