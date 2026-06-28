@@ -23,7 +23,7 @@ export class ExpenseService {
           shopId: data.shopId,
           title: data.title,
           amount: data.amount,
-          category: data.category,
+          ...(data.category !== undefined ? { category: data.category } : {}),
           date: data.date
         }
       })
@@ -46,6 +46,21 @@ export class ExpenseService {
     return this.prisma.expense.findMany({
       where: { shopId },
       orderBy: { date: 'desc' }
+    })
+  }
+
+  async getExpensesByOrganization(organizationId: string) {
+    return this.prisma.expense.findMany({
+      where: { shop: { organizationId } },
+      include: { shop: { select: { id: true, name: true } } },
+      orderBy: { date: 'desc' }
+    })
+  }
+
+  async getExpenseShop(shopId: string) {
+    return this.prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { id: true, name: true }
     })
   }
 }

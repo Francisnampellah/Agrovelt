@@ -17,6 +17,9 @@ import { createInventoryRoutes } from './routes/inventory'
 import { createOrganizationRoutes } from './routes/organizations'
 import { createFirebaseRoutes } from './routes/firebase'
 import { createSaleRoutes } from './routes/sales'
+import { createExpenseRoutes } from './routes/expenses'
+import { createPurchaseRoutes } from './routes/purchases'
+import { createNotificationModule } from './modules/notifications'
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -81,6 +84,8 @@ app.use((req, res, next) => {
 })
 
 // Routes
+const activityModules = createNotificationModule(prisma)
+
 app.use('/', createHealthRoutes(prisma))
 app.use('/api/auth', createAuthRoutes(prisma))
 app.use('/api/admin', createAdminRoutes(prisma))
@@ -89,8 +94,10 @@ app.use('/api', createUserRoutes(prisma))
 app.use('/api', createShopRoutes(prisma))
 app.use('/api', createProductRoutes(prisma))
 app.use('/api', createInventoryRoutes(prisma))
-app.use('/api', createOrganizationRoutes(prisma))
-app.use('/api', createSaleRoutes(prisma))
+app.use('/api', createOrganizationRoutes(prisma, activityModules))
+app.use('/api', createSaleRoutes(prisma, activityModules.notificationService))
+app.use('/api', createExpenseRoutes(prisma, activityModules.notificationService))
+app.use('/api', createPurchaseRoutes(prisma, activityModules.notificationService))
 
 // Start server
 app.listen(PORT, () => {

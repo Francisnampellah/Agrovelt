@@ -1,11 +1,15 @@
 import { Response } from 'express'
 import { body, query, validationResult } from 'express-validator'
 import { AuthenticatedRequest } from '../auth/types'
+import { NotificationService } from '../notifications/notification.service'
 import { SaleService } from './sale.service'
 import { CreateSaleRequest } from './types'
 
 export class SaleController {
-  constructor(private saleService: SaleService) {}
+  constructor(
+    private saleService: SaleService,
+    private notificationService: NotificationService
+  ) {}
 
   createValidation = [
     body('shopId').isUUID().withMessage('Valid shop ID is required'),
@@ -43,7 +47,21 @@ export class SaleController {
       }
 
       const sale = await this.saleService.createSale(payload)
-      res.status(201).json({ data: sale })
+      if (!sale) {
+        return res.status(400).json({ error: 'Failed to create sale' })
+      }
+
+      const shop = await this.saleService.getSaleShop(sale.shopId)
+      const notification = this.notificationService.fromSale({
+        id: sale.id,
+        shopId: sale.shopId,
+        total: sale.total,
+        status: sale.status,
+        createdAt: sale.createdAt,
+        ...(shop ? { shop: { name: shop.name } } : {})
+      })
+
+      res.status(201).json({ data: sale, notification })
     } catch (error: any) {
       res.status(400).json({ error: error.message })
     }
@@ -79,7 +97,21 @@ export class SaleController {
 
       const refundedBy = req.body.refundedBy || req.user.userId
       const sale = await this.saleService.refundSale(String(req.params.saleId), refundedBy)
-      res.json({ message: 'Sale refunded successfully', data: sale })
+      if (!sale) {
+        return res.status(400).json({ error: 'Failed to refund sale' })
+      }
+
+      const shop = await this.saleService.getSaleShop(sale.shopId)
+      const notification = this.notificationService.fromSale({
+        id: sale.id,
+        shopId: sale.shopId,
+        total: sale.total,
+        status: sale.status,
+        createdAt: sale.createdAt,
+        ...(shop ? { shop: { name: shop.name } } : {})
+      })
+
+      res.json({ message: 'Sale refunded successfully', data: sale, notification })
     } catch (error: any) {
       res.status(400).json({ error: error.message })
     }

@@ -2,11 +2,15 @@ import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { AuthMiddleware, AuthService } from '../modules/auth'
 import { createSaleModule } from '../modules/sale'
+import { NotificationService } from '../modules/notifications/notification.service'
 
-export function createSaleRoutes(prisma: PrismaClient) {
+export function createSaleRoutes(
+  prisma: PrismaClient,
+  notificationService?: NotificationService
+) {
   const router = Router()
   const authMiddleware = new AuthMiddleware(new AuthService(prisma))
-  const { saleController } = createSaleModule(prisma)
+  const { saleController } = createSaleModule(prisma, notificationService)
 
   /**
    * @swagger

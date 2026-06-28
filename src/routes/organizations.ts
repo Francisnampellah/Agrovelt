@@ -1,13 +1,16 @@
 import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { AuthMiddleware, AuthService } from '../modules/auth'
-import { createOrganizationModule } from '../modules/organizations'
+import { createOrganizationModule, OrganizationModuleDeps } from '../modules/organizations'
 
 const router = Router()
 
-export function createOrganizationRoutes(prisma: PrismaClient) {
+export function createOrganizationRoutes(
+  prisma: PrismaClient,
+  deps?: OrganizationModuleDeps
+) {
   const authMiddleware = new AuthMiddleware(new AuthService(prisma))
-  const { organizationController } = createOrganizationModule(prisma)
+  const { organizationController } = createOrganizationModule(prisma, deps)
 
 /**
  * @swagger
@@ -77,6 +80,104 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
     authMiddleware.authenticate,
     organizationController.createValidation,
     organizationController.create
+  )
+
+/**
+ * @swagger
+ * /api/organizations/{id}/sales:
+ *   get:
+ *     summary: List sales for an organization
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization sales
+ *       403:
+ *         description: Access denied
+ */
+  router.get(
+    '/organizations/:id/sales',
+    authMiddleware.authenticate,
+    organizationController.getSales
+  )
+
+/**
+ * @swagger
+ * /api/organizations/{id}/expenses:
+ *   get:
+ *     summary: List expenses for an organization
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization expenses
+ */
+  router.get(
+    '/organizations/:id/expenses',
+    authMiddleware.authenticate,
+    organizationController.getExpenses
+  )
+
+/**
+ * @swagger
+ * /api/organizations/{id}/purchases:
+ *   get:
+ *     summary: List purchases for an organization
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization purchases
+ */
+  router.get(
+    '/organizations/:id/purchases',
+    authMiddleware.authenticate,
+    organizationController.getPurchases
+  )
+
+/**
+ * @swagger
+ * /api/organizations/{id}/notifications:
+ *   get:
+ *     summary: Activity notifications for an organization
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+ *     responses:
+ *       200:
+ *         description: Merged sales, purchases, and expenses activity feed
+ */
+  router.get(
+    '/organizations/:id/notifications',
+    authMiddleware.authenticate,
+    organizationController.notificationsValidation,
+    organizationController.getNotifications
   )
 
 /**
