@@ -2,6 +2,7 @@
 import { InventoryService } from '../inventory/inventory.service'
 import { CashFlowService } from '../cashflow/cashflow.service'
 import { PricingService } from '../pricing/pricing.service'
+import { ReceiptService } from '../receipt/receipt.service'
 import { CreateSaleRequest } from './types'
 
 export class SaleService {
@@ -9,7 +10,8 @@ export class SaleService {
     private prisma: PrismaClient,
     private inventoryService: InventoryService,
     private cashFlowService: CashFlowService,
-    private pricingService: PricingService
+    private pricingService: PricingService,
+    private receiptService: ReceiptService
   ) {}
 
   async createSale(data: CreateSaleRequest) {
@@ -97,11 +99,28 @@ export class SaleService {
         recordedBy: data.createdBy
       })
 
+      const shop = await tx.shop.findUnique({
+        where: { id: data.shopId },
+        select: { organizationId: true }
+      })
+
+      if (!shop) {
+        throw new Error(`Shop ${data.shopId} not found`)
+      }
+
+      await this.receiptService.createForSale({
+        saleId: sale.id,
+        shopId: data.shopId,
+        organizationId: shop.organizationId,
+        issuedBy: data.createdBy
+      }, tx)
+
       return tx.sale.findUnique({
         where: { id: sale.id },
         include: {
           items: { include: { variant: { include: { product: true } } } },
-          payments: true
+          payments: true,
+          receipt: true
         }
       })
     })
@@ -188,11 +207,14 @@ export class SaleService {
         recordedBy: refundedBy
       })
 
+      await this.receiptService.voidForSale(saleId, tx)
+
       return tx.sale.findUnique({
         where: { id: saleId },
         include: {
           items: { include: { variant: { include: { product: true } } } },
-          payments: true
+          payments: true,
+          receipt: true
         }
       })
     })

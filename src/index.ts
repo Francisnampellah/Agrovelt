@@ -19,6 +19,8 @@ import { createFirebaseRoutes } from './routes/firebase'
 import { createSaleRoutes } from './routes/sales'
 import { createExpenseRoutes } from './routes/expenses'
 import { createPurchaseRoutes } from './routes/purchases'
+import { createReceiptRoutes } from './routes/receipts'
+import { createNotificationRoutes } from './routes/notifications'
 import { createNotificationModule } from './modules/notifications'
 import { createInventoryModule } from './modules/inventory'
 import { createShopModule } from './modules/shops'
@@ -107,6 +109,8 @@ app.use('/api', createOrganizationRoutes(prisma, organizationDeps))
 app.use('/api', createSaleRoutes(prisma, activityModules.notificationService))
 app.use('/api', createExpenseRoutes(prisma, activityModules.notificationService))
 app.use('/api', createPurchaseRoutes(prisma, activityModules.notificationService))
+app.use('/api', createReceiptRoutes(prisma))
+app.use('/api', createNotificationRoutes(prisma))
 
 // Start server
 app.listen(PORT, () => {

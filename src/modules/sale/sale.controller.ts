@@ -52,16 +52,19 @@ export class SaleController {
       }
 
       const shop = await this.saleService.getSaleShop(sale.shopId)
-      const notification = this.notificationService.fromSale({
-        id: sale.id,
-        shopId: sale.shopId,
-        total: sale.total,
-        status: sale.status,
-        createdAt: sale.createdAt,
-        ...(shop ? { shop: { name: shop.name } } : {})
-      })
+      const notification = await this.notificationService.recordFromShopActivity(
+        sale.shopId,
+        this.notificationService.fromSale({
+          id: sale.id,
+          shopId: sale.shopId,
+          total: sale.total,
+          status: sale.status,
+          createdAt: sale.createdAt,
+          ...(shop ? { shop: { name: shop.name } } : {})
+        })
+      )
 
-      res.status(201).json({ data: sale, notification })
+      res.status(201).json({ data: sale, receipt: sale.receipt, notification })
     } catch (error: any) {
       res.status(400).json({ error: error.message })
     }
@@ -102,16 +105,19 @@ export class SaleController {
       }
 
       const shop = await this.saleService.getSaleShop(sale.shopId)
-      const notification = this.notificationService.fromSale({
-        id: sale.id,
-        shopId: sale.shopId,
-        total: sale.total,
-        status: sale.status,
-        createdAt: sale.createdAt,
-        ...(shop ? { shop: { name: shop.name } } : {})
-      })
+      const notification = await this.notificationService.recordFromShopActivity(
+        sale.shopId,
+        this.notificationService.fromSale({
+          id: sale.id,
+          shopId: sale.shopId,
+          total: sale.total,
+          status: sale.status,
+          createdAt: sale.createdAt,
+          ...(shop ? { shop: { name: shop.name } } : {})
+        })
+      )
 
-      res.json({ message: 'Sale refunded successfully', data: sale, notification })
+      res.json({ message: 'Sale refunded successfully', data: sale, receipt: sale.receipt, notification })
     } catch (error: any) {
       res.status(400).json({ error: error.message })
     }

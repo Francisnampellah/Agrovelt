@@ -50,7 +50,10 @@ export class PurchaseController {
         return res.status(400).json({ error: 'Failed to create purchase' })
       }
 
-      const notification = this.notificationService.fromPurchase(purchase)
+      const notification = await this.notificationService.recordFromShopActivity(
+        purchase.shopId,
+        this.notificationService.fromPurchase(purchase)
+      )
 
       res.status(201).json({ data: purchase, notification })
     } catch (error: any) {

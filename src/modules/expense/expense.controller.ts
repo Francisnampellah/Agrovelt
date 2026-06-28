@@ -38,14 +38,16 @@ export class ExpenseController {
       })
 
       const shop = await this.expenseService.getExpenseShop(expense.shopId)
-      const notification = this.notificationService.fromExpense({
-        id: expense.id,
-        shopId: expense.shopId,
-        title: expense.title,
-        amount: expense.amount,
-        date: expense.date,
-        ...(shop ? { shop: { name: shop.name } } : {})
-      })
+      const notification = await this.notificationService.recordFromShopActivity(
+        expense.shopId,
+        this.notificationService.fromExpense({
+          id: expense.id,
+          shopId: expense.shopId,
+          title: expense.title,
+          amount: expense.amount,
+          ...(shop ? { shop: { name: shop.name } } : {})
+        })
+      )
 
       res.status(201).json({ data: expense, notification })
     } catch (error: any) {

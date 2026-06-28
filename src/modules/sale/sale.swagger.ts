@@ -41,6 +41,8 @@
  *                   $ref: '#/components/schemas/Sale'
  *                 notification:
  *                   $ref: '#/components/schemas/NotificationItem'
+ *                 receipt:
+ *                   $ref: '#/components/schemas/Receipt'
  *       400:
  *         description: Invalid input or insufficient stock
  *
@@ -112,6 +114,8 @@
  *                   $ref: '#/components/schemas/Sale'
  *                 notification:
  *                   $ref: '#/components/schemas/NotificationItem'
+ *                 receipt:
+ *                   $ref: '#/components/schemas/Receipt'
  *       400:
  *         description: Cannot refund — already refunded or invalid sale ID
  */

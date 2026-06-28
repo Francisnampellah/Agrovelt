@@ -33,6 +33,7 @@ export function getSwaggerConfig(port: number | string) {
         { name: 'CashFlow', description: 'Cash flow entries and reports' },
         { name: 'Purchases', description: 'Purchase orders and receipts' },
         { name: 'Sales', description: 'Sales and payments' },
+        { name: 'Receipts', description: 'Sale receipts and printing' },
         { name: 'Expenses', description: 'Expense recording' },
         { name: 'Notifications', description: 'Organization activity notifications' },
         { name: 'Firebase', description: 'Firebase integration' },
@@ -214,15 +215,33 @@ export function getSwaggerConfig(port: number | string) {
           NotificationItem: {
             type: 'object',
             properties: {
-              id: { type: 'string', description: 'Composite id e.g. sale-{uuid}' },
-              type: { type: 'string', enum: ['SALE', 'PURCHASE', 'EXPENSE', 'SALE_REFUND'] },
+              id: { type: 'string', format: 'uuid' },
+              type: { type: 'string', enum: ['SALE', 'PURCHASE', 'EXPENSE', 'SALE_REFUND', 'SYSTEM'] },
               title: { type: 'string' },
               message: { type: 'string' },
               referenceId: { type: 'string', format: 'uuid' },
               shopId: { type: 'string', format: 'uuid' },
               shopName: { type: 'string' },
               amount: { type: 'number' },
+              isRead: { type: 'boolean' },
+              readAt: { type: 'string', format: 'date-time', nullable: true },
               createdAt: { type: 'string', format: 'date-time' }
+            }
+          },
+          Receipt: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              receiptNumber: { type: 'string' },
+              saleId: { type: 'string', format: 'uuid' },
+              organizationId: { type: 'string', format: 'uuid' },
+              shopId: { type: 'string', format: 'uuid' },
+              issuedBy: { type: 'string' },
+              status: { type: 'string', enum: ['ISSUED', 'VOIDED'] },
+              notes: { type: 'string', nullable: true },
+              printedAt: { type: 'string', format: 'date-time', nullable: true },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' }
             }
           },
           AuthResponse: {

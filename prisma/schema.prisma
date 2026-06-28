@@ -42,6 +42,19 @@ enum SaleStatus {
   REFUNDED
 }
 
+enum ReceiptStatus {
+  ISSUED
+  VOIDED
+}
+
+enum NotificationType {
+  SALE
+  PURCHASE
+  EXPENSE
+  SALE_REFUND
+  SYSTEM
+}
+
 enum TransferStatus {
   PENDING
   COMPLETED
@@ -64,6 +77,8 @@ model Organization {
   users     User[]
   shops     Shop[]
   suppliers Supplier[]
+  receipts      Receipt[]
+  notifications Notification[]
 }
 
 // ------------------------------------------------------
@@ -88,6 +103,7 @@ model User {
 
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
+  notifications Notification[]
 }
 
 model RefreshToken {
@@ -146,6 +162,8 @@ model Shop {
   transfersIn           InventoryTransfer[]    @relation("TransferTo")
   variantPrices         ShopVariantPrice[]
   cashFlowEntries       CashFlowEntry[]
+  receipts              Receipt[]
+  notifications         Notification[]
 }
 
 model ShopStaff {
@@ -421,6 +439,7 @@ model Sale {
 
   items    SaleItem[]
   payments Payment[]
+  receipt  Receipt?
 }
 
 model SaleItem {
@@ -469,4 +488,49 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+}
+
+// ------------------------------------------------------
+// RECEIPTS & NOTIFICATIONS
+// ------------------------------------------------------
+
+model Receipt {
+  id             String        @id @default(uuid())
+  receiptNumber  String        @unique
+  saleId         String        @unique
+  organizationId String
+  shopId         String
+  issuedBy       String
+  status         ReceiptStatus @default(ISSUED)
+  notes          String?
+  printedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  sale         Sale         @relation(fields: [saleId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  shop         Shop         @relation(fields: [shopId], references: [id])
+}
+
+model Notification {
+  id             String           @id @default(uuid())
+  organizationId String
+  userId         String?
+  type           NotificationType
+  title          String
+  message        String
+  referenceId    String?
+  shopId         String?
+  shopName       String?
+  amount         Float?
+  isRead         Boolean          @default(false)
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+  shop         Shop?        @relation(fields: [shopId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, isRead])
 }

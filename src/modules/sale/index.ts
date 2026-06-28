@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import { InventoryService } from '../inventory/inventory.service'
 import { CashFlowService } from '../cashflow/cashflow.service'
 import { PricingService } from '../pricing/pricing.service'
+import { ReceiptService } from '../receipt/receipt.service'
 import { NotificationService } from '../notifications/notification.service'
 import { createNotificationModule } from '../notifications'
 import { SaleService } from './sale.service'
@@ -14,7 +15,14 @@ export function createSaleModule(
   const inventoryService = new InventoryService(prisma)
   const cashFlowService = new CashFlowService(prisma)
   const pricingService = new PricingService(prisma)
-  const saleService = new SaleService(prisma, inventoryService, cashFlowService, pricingService)
+  const receiptService = new ReceiptService(prisma)
+  const saleService = new SaleService(
+    prisma,
+    inventoryService,
+    cashFlowService,
+    pricingService,
+    receiptService
+  )
 
   const notifications =
     notificationService ?? createNotificationModule(prisma).notificationService
