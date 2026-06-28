@@ -84,4 +84,121 @@
  *         description: Organization updated
  *       404:
  *         description: Organization not found
+ *
+ * /api/organizations/{id}/sales:
+ *   get:
+ *     tags: [Organizations]
+ *     summary: List sales for an organization
+ *     security: [{ bearerAuth: [] }]
+ *     description: |
+ *       Returns all sales across shops belonging to the organization.
+ *       Accessible to organization members and SUPER_ADMIN.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization sales
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Sale'
+ *       403:
+ *         description: Access denied to this organization
+ *       404:
+ *         description: Organization not found
+ *
+ * /api/organizations/{id}/expenses:
+ *   get:
+ *     tags: [Organizations]
+ *     summary: List expenses for an organization
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization expenses
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Expense'
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Organization not found
+ *
+ * /api/organizations/{id}/purchases:
+ *   get:
+ *     tags: [Organizations]
+ *     summary: List purchases for an organization
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization purchases
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Purchase'
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Organization not found
+ *
+ * /api/organizations/{id}/notifications:
+ *   get:
+ *     tags: [Organizations, Notifications]
+ *     summary: Activity notifications for an organization
+ *     security: [{ bearerAuth: [] }]
+ *     description: |
+ *       Merged feed of recent sales, purchases, expenses, and refunds
+ *       across all shops in the organization, sorted newest first.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - name: limit
+ *         in: query
+ *         schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+ *     responses:
+ *       200:
+ *         description: Notification feed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/NotificationItem'
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Organization not found
  */
