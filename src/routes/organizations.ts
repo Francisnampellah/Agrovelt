@@ -1,13 +1,16 @@
 import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { AuthMiddleware, AuthService } from '../modules/auth'
-import { createOrganizationModule } from '../modules/organizations'
+import { createOrganizationModule, OrganizationModuleDeps } from '../modules/organizations'
 
 const router = Router()
 
-export function createOrganizationRoutes(prisma: PrismaClient) {
+export function createOrganizationRoutes(
+  prisma: PrismaClient,
+  deps?: OrganizationModuleDeps
+) {
   const authMiddleware = new AuthMiddleware(new AuthService(prisma))
-  const { organizationController } = createOrganizationModule(prisma)
+  const { organizationController } = createOrganizationModule(prisma, deps)
 
 /**
  * @swagger
@@ -77,6 +80,57 @@ export function createOrganizationRoutes(prisma: PrismaClient) {
     authMiddleware.authenticate,
     organizationController.createValidation,
     organizationController.create
+  )
+
+  router.get(
+    '/organizations/:id/sales',
+    authMiddleware.authenticate,
+    organizationController.getSales
+  )
+
+  router.get(
+    '/organizations/:id/expenses',
+    authMiddleware.authenticate,
+    organizationController.getExpenses
+  )
+
+  router.get(
+    '/organizations/:id/purchases',
+    authMiddleware.authenticate,
+    organizationController.getPurchases
+  )
+
+  router.get(
+    '/organizations/:id/notifications',
+    authMiddleware.authenticate,
+    organizationController.notificationsValidation,
+    organizationController.getNotifications
+  )
+
+  router.get(
+    '/organizations/:id/shops',
+    authMiddleware.authenticate,
+    organizationController.getShops
+  )
+
+  router.get(
+    '/organizations/:id/stock/summary',
+    authMiddleware.authenticate,
+    organizationController.stockSummaryValidation,
+    organizationController.getStockSummary
+  )
+
+  router.get(
+    '/organizations/:id/stock/transactions',
+    authMiddleware.authenticate,
+    organizationController.stockTransactionsValidation,
+    organizationController.getStockTransactions
+  )
+
+  router.get(
+    '/organizations/:id/stock',
+    authMiddleware.authenticate,
+    organizationController.getStock
   )
 
 /**

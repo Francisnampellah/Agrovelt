@@ -251,6 +251,107 @@ export class InventoryService {
     })
   }
 
+  async getInventoryByOrganization(organizationId: string) {
+    return this.prisma.inventory.findMany({
+      where: { shop: { organizationId } },
+      include: {
+        shop: { select: { id: true, name: true, type: true, location: true } },
+        variant: { include: { product: true } }
+      },
+      orderBy: { updatedAt: 'desc' }
+    })
+  }
+
+  async getTransactionsByOrganization(
+    organizationId: string,
+    filters: { shopId?: string; cursor?: string; take?: number } = {}
+  ) {
+    const { shopId, cursor, take = 50 } = filters
+
+    return this.prisma.inventoryTransaction.findMany({
+      where: {
+        shop: { organizationId },
+        ...(shopId ? { shopId } : {})
+      },
+      take,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        shop: { select: { id: true, name: true } },
+        variant: { include: { product: true } }
+      }
+    })
+  }
+
+  async getStockSummaryByOrganization(organizationId: string, lowStockThreshold = 10) {
+    const rows = await this.getInventoryByOrganization(organizationId)
+
+    const byVariantMap = new Map<
+      string,
+      {
+        variantId: string
+        variantName: string
+        sku: string
+        productId: string
+        productName: string
+        totalQuantity: number
+        batchCount: number
+        shops: { shopId: string; shopName: string; quantity: number }[]
+      }
+    >()
+
+    let totalUnits = 0
+
+    for (const row of rows) {
+      totalUnits += row.quantity
+
+      const existing = byVariantMap.get(row.variantId)
+      if (existing) {
+        existing.totalQuantity += row.quantity
+        existing.batchCount += 1
+        const shopRow = existing.shops.find(s => s.shopId === row.shopId)
+        if (shopRow) {
+          shopRow.quantity += row.quantity
+        } else {
+          existing.shops.push({
+            shopId: row.shop.id,
+            shopName: row.shop.name,
+            quantity: row.quantity
+          })
+        }
+      } else {
+        byVariantMap.set(row.variantId, {
+          variantId: row.variantId,
+          variantName: row.variant.name,
+          sku: row.variant.sku,
+          productId: row.variant.productId,
+          productName: row.variant.product.name,
+          totalQuantity: row.quantity,
+          batchCount: 1,
+          shops: [{
+            shopId: row.shop.id,
+            shopName: row.shop.name,
+            quantity: row.quantity
+          }]
+        })
+      }
+    }
+
+    const byVariant = Array.from(byVariantMap.values())
+      .sort((a, b) => a.productName.localeCompare(b.productName))
+
+    const lowStockCount = byVariant.filter(v => v.totalQuantity <= lowStockThreshold).length
+
+    return {
+      totalSkus: byVariant.length,
+      totalUnits,
+      totalBatches: rows.length,
+      lowStockThreshold,
+      lowStockCount,
+      byVariant
+    }
+  }
+
   async getTransactionsByShop(shopId: string, cursor?: string, take = 50) {
     return this.prisma.inventoryTransaction.findMany({
       where: { shopId },

@@ -25,7 +25,7 @@ export function getSwaggerConfig(port: number | string) {
         { name: 'Health', description: 'System health check' },
         { name: 'Auth', description: 'Authentication & authorization' },
         { name: 'Users', description: 'User management' },
-        { name: 'Organizations', description: 'Organization management (SUPER_ADMIN only)' },
+        { name: 'Organizations', description: 'Organization management and org-scoped activity' },
         { name: 'Shops', description: 'Shop management' },
         { name: 'Products', description: 'Product catalog and management' },
         { name: 'Inventory', description: 'Inventory tracking and management' },
@@ -34,6 +34,7 @@ export function getSwaggerConfig(port: number | string) {
         { name: 'Purchases', description: 'Purchase orders and receipts' },
         { name: 'Sales', description: 'Sales and payments' },
         { name: 'Expenses', description: 'Expense recording' },
+        { name: 'Notifications', description: 'Organization activity notifications' },
         { name: 'Firebase', description: 'Firebase integration' },
         { name: 'Admin', description: 'Administrative operations' }
       ],
@@ -208,6 +209,20 @@ export function getSwaggerConfig(port: number | string) {
               amount: { type: 'number' },
               category: { type: 'string', nullable: true },
               date: { type: 'string', format: 'date-time' }
+            }
+          },
+          NotificationItem: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Composite id e.g. sale-{uuid}' },
+              type: { type: 'string', enum: ['SALE', 'PURCHASE', 'EXPENSE', 'SALE_REFUND'] },
+              title: { type: 'string' },
+              message: { type: 'string' },
+              referenceId: { type: 'string', format: 'uuid' },
+              shopId: { type: 'string', format: 'uuid' },
+              shopName: { type: 'string' },
+              amount: { type: 'number' },
+              createdAt: { type: 'string', format: 'date-time' }
             }
           },
           AuthResponse: {

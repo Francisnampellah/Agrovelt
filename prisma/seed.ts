@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt'
 import * as dotenv from 'dotenv'
 import { PrismaClient, Role } from '@prisma/client'
+import { seedCatalog } from './catalog-seed'
 
 dotenv.config()
 
@@ -74,6 +75,8 @@ async function main() {
   })
 
   console.log(`Super Admin user ready: ${superAdmin1.email}`)
+
+  await seedCatalog(prisma)
 }
 
 main()

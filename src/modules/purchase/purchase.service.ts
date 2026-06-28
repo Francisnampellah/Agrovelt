@@ -35,31 +35,29 @@ export class PurchaseService {
       const purchase = await tx.purchase.create({
         data: {
           shopId: data.shopId,
-          supplierId: data.supplierId,
+          ...(data.supplierId !== undefined ? { supplierId: data.supplierId } : {}),
           totalAmount,
-          createdBy: data.createdBy,
+          createdBy: data.createdBy
         }
       })
 
       for (const item of data.items) {
-        // 2. Create purchase line item
         await tx.purchaseItem.create({
           data: {
             purchaseId: purchase.id,
             variantId: item.variantId,
-            batchNumber: item.batchNumber,
+            ...(item.batchNumber !== undefined ? { batchNumber: item.batchNumber } : {}),
             quantity: item.quantity,
             costPrice: item.costPrice,
-            expiryDate: item.expiryDate
+            ...(item.expiryDate !== undefined ? { expiryDate: item.expiryDate } : {})
           }
         })
 
-        // 3. Update inventory stock and batch cost using the service boundary
         await this.inventoryService.receivePurchaseBatch({
           shopId: data.shopId,
           variantId: item.variantId,
           batchNumber: item.batchNumber ?? 'DEFAULT',
-          expiryDate: item.expiryDate,
+          ...(item.expiryDate !== undefined ? { expiryDate: item.expiryDate } : {}),
           quantity: item.quantity,
           costPrice: item.costPrice,
           purchaseId: purchase.id
@@ -84,7 +82,18 @@ export class PurchaseService {
         recordedBy: data.createdBy
       })
 
-      return purchase
+      return tx.purchase.findUnique({
+        where: { id: purchase.id },
+        include: {
+          shop: { select: { id: true, name: true } },
+          supplier: true,
+          items: {
+            include: {
+              variant: { include: { product: true } }
+            }
+          }
+        }
+      })
     })
   }
 
@@ -92,6 +101,24 @@ export class PurchaseService {
     return this.prisma.purchase.findMany({
       where: { shopId },
       include: {
+        supplier: true,
+        items: {
+          include: {
+            variant: {
+              include: { product: true }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+  }
+
+  async getPurchasesByOrganization(organizationId: string) {
+    return this.prisma.purchase.findMany({
+      where: { shop: { organizationId } },
+      include: {
+        shop: { select: { id: true, name: true } },
         supplier: true,
         items: {
           include: {

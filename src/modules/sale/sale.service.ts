@@ -118,6 +118,25 @@ export class SaleService {
     })
   }
 
+  async getSaleShop(shopId: string) {
+    return this.prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { id: true, name: true }
+    })
+  }
+
+  async getSalesByOrganization(organizationId: string) {
+    return this.prisma.sale.findMany({
+      where: { shop: { organizationId } },
+      include: {
+        shop: { select: { id: true, name: true } },
+        items: { include: { variant: { include: { product: true } } } },
+        payments: true
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+  }
+
   async getSaleById(saleId: string) {
     const sale = await this.prisma.sale.findUnique({
       where: { id: saleId },
