@@ -201,4 +201,90 @@
  *         description: Access denied
  *       404:
  *         description: Organization not found
+ *
+ * /api/organizations/{id}/shops:
+ *   get:
+ *     tags: [Organizations, Shops]
+ *     summary: List shops for an organization
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization shops
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Shop'
+ *
+ * /api/organizations/{id}/stock:
+ *   get:
+ *     tags: [Organizations, Inventory]
+ *     summary: Stock levels across all organization shops
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Inventory batches with shop and variant details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Inventory'
+ *
+ * /api/organizations/{id}/stock/summary:
+ *   get:
+ *     tags: [Organizations, Inventory]
+ *     summary: Aggregated stock summary by product variant
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - name: lowStockThreshold
+ *         in: query
+ *         schema: { type: integer, minimum: 0, default: 10 }
+ *     responses:
+ *       200:
+ *         description: Variant totals and per-shop breakdown
+ *
+ * /api/organizations/{id}/stock/transactions:
+ *   get:
+ *     tags: [Organizations, Inventory]
+ *     summary: Inventory movement history across organization shops
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - name: shopId
+ *         in: query
+ *         schema: { type: string, format: uuid }
+ *       - name: limit
+ *         in: query
+ *         schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+ *       - name: cursor
+ *         in: query
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Inventory transactions
  */

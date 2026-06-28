@@ -107,6 +107,32 @@ export function createOrganizationRoutes(
     organizationController.getNotifications
   )
 
+  router.get(
+    '/organizations/:id/shops',
+    authMiddleware.authenticate,
+    organizationController.getShops
+  )
+
+  router.get(
+    '/organizations/:id/stock/summary',
+    authMiddleware.authenticate,
+    organizationController.stockSummaryValidation,
+    organizationController.getStockSummary
+  )
+
+  router.get(
+    '/organizations/:id/stock/transactions',
+    authMiddleware.authenticate,
+    organizationController.stockTransactionsValidation,
+    organizationController.getStockTransactions
+  )
+
+  router.get(
+    '/organizations/:id/stock',
+    authMiddleware.authenticate,
+    organizationController.getStock
+  )
+
 /**
  * @swagger
  * /api/organizations:
