@@ -128,7 +128,7 @@ export class AuthService {
     }
   }
 
-  async createSessionForUser(userId: string): Promise<Pick<AuthResponse, 'token' | 'refreshToken'>> {
+  async createSessionForUser(userId: string): Promise<{ accessToken: string, token: string, refreshToken: string, expiresIn: number }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId }
     })
@@ -140,7 +140,8 @@ export class AuthService {
     const token = this.generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      ...(user.organizationId ? { organizationId: user.organizationId } : {})
     })
 
     const refreshToken = this.generateRefreshToken()
@@ -152,7 +153,12 @@ export class AuthService {
       }
     })
 
-    return { token, refreshToken }
+    return {
+      accessToken: token,
+      token,
+      refreshToken,
+      expiresIn: JWT_EXPIRES_IN_SECONDS
+    }
   }
 
   async login(data: LoginRequest): Promise<AuthResponse> {
@@ -243,14 +249,16 @@ export class AuthService {
             email,
             name: fbName?.trim() || email.split('@')[0],
             firebaseUid: uid,
-            role: Role.STAFF
+            role: localRole
           },
           include: {
             shopsOwned: { select: { id: true } },
             staffIn: { select: { shopId: true } }
           }
         })
-      } else if (!user.firebaseUid) {
+      } else if (user.firebaseUid && user.firebaseUid !== uid) {
+        throw new Error('Email is already linked to a different Firebase account')
+      } else if (!user.firebaseUid || user.role !== localRole) {
         user = await this.prisma.user.update({
           where: { id: user.id },
           data: {
