@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { AuthService } from './auth.service'
 import { firebaseAuth } from '../../config/firebase'
 import { AuthenticatedRequest, JWTPayload } from './types'
-import { normalizeFirebaseGlobalRole } from './firebaseRoleMapping'
+import { normalizeAgrovetExchangeGlobalRole } from './firebaseRoleMapping'
 
 export class AuthMiddleware {
   // Define public routes that don't require authentication
@@ -55,9 +55,12 @@ export class AuthMiddleware {
           const decodedFB = await firebaseAuth.verifyIdToken(token)
           
           // Check for globalRole if we want to enforce it here too
-          const firebaseGlobalRole = normalizeFirebaseGlobalRole(decodedFB.globalRole)
+          const firebaseGlobalRole = normalizeAgrovetExchangeGlobalRole(decodedFB.globalRole)
           if (!firebaseGlobalRole) {
-             return res.status(403).json({ error: 'Forbidden: Invalid domain claim' })
+            return res.status(403).json({
+              error:
+                'Forbidden: Invalid domain claim. Firebase globalRole must be agrovet, admin, or dev on the ID token.'
+            })
           }
 
           if (!decodedFB.email) {

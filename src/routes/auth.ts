@@ -121,7 +121,14 @@ export function createAuthRoutes(prisma: PrismaClient) {
    *             properties:
    *               firebaseToken:
    *                 type: string
-   *                 description: Valid Firebase ID token with 'agrovet' globalRole claim
+   *                 description: Firebase ID token (verified via Admin SDK)
+   *               globalRole:
+   *                 type: string
+   *                 description: |
+   *                   Optional fallback when the token has no globalRole claim.
+   *                   Mobile may send Firestore user_role (e.g. agrovet).
+   *                   Only "agrovet" is accepted from the body; admin/dev must be on the token.
+   *                 example: agrovet
    *               clientType:
    *                 type: string
    *                 enum: [web, mobile]

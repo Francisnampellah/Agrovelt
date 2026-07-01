@@ -12,6 +12,7 @@ import { ShopService } from '../shops/shop.service'
 import { assertOrganizationAccess } from './organization-access'
 import { OrganizationService } from './organization.service'
 import { CreateOrganizationRequest } from './types'
+import { formatCollectorAuthResponse } from '../auth/collectorResponse'
 
 export class OrganizationController {
   constructor(
@@ -53,14 +54,23 @@ export class OrganizationController {
       const result = await this.organizationService.createOrganizationForUser(req.user.userId, data)
       const session = await this.authService.createSessionForUser(result.user.id)
 
-      res.status(201).json({
-        message: 'Organization created and linked to your account',
-        data: {
-          ...result,
-          token: session.token,
-          refreshToken: session.refreshToken
-        }
-      })
+      const user = {
+        id: result.user.id,
+        name: result.user.name,
+        email: result.user.email,
+        role: result.user.role,
+        organizationId: result.user.organizationId,
+        isActive: true
+      }
+
+      res.status(201).json(
+        formatCollectorAuthResponse(
+          'Organization created and linked to your account',
+          session,
+          user,
+          { organization: result.organization }
+        )
+      )
     } catch (error: any) {
       res.status(400).json({ error: error.message })
     }

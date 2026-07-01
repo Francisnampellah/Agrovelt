@@ -4,7 +4,7 @@ import crypto from 'crypto'
 import { PrismaClient, Role } from '@prisma/client'
 import { firebaseAuth } from '../../config/firebase'
 import { LoginRequest, RegisterRequest, AuthResponse, JWTPayload, ExchangeRequest, TokenResponse } from './types'
-import { mapFirebaseGlobalRoleToAgrovetRole, normalizeFirebaseGlobalRole } from './firebaseRoleMapping'
+import { mapFirebaseGlobalRoleToAgrovetRole, resolveExchangeGlobalRole } from './firebaseRoleMapping'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m'
@@ -218,21 +218,31 @@ export class AuthService {
   }
 
   async exchangeFirebaseToken(data: ExchangeRequest): Promise<TokenResponse> {
-    const { firebaseToken, clientType, deviceId } = data
+    const { firebaseToken, clientType, deviceId, globalRole: bodyGlobalRole } = data
 
     try {
       // 1. Verify Firebase ID token
       const decodedToken = await firebaseAuth.verifyIdToken(firebaseToken)
-      
-      // 2. Check globalRole claim
-      const firebaseGlobalRole = normalizeFirebaseGlobalRole(decodedToken.globalRole)
-      if (!firebaseGlobalRole) {
-        throw new Error('Unauthorized: Invalid domain claim')
+
+      // 2. Resolve platform globalRole (token claim, or body fallback for agrovet)
+      const resolved = resolveExchangeGlobalRole(decodedToken.globalRole, bodyGlobalRole)
+      if (!resolved.role) {
+        throw new Error(`Unauthorized: ${resolved.rejectReason ?? 'Missing agrovet platform role'}`)
       }
+      const firebaseGlobalRole = resolved.role
       const localRole = mapFirebaseGlobalRoleToAgrovetRole(firebaseGlobalRole)
 
       const { uid, email, name: fbName } = decodedToken
       if (!email) throw new Error('Firebase token missing email')
+
+      // Sync claim when mobile sent Firestore role in body but token lacks it
+      if (resolved.source === 'body' && firebaseGlobalRole === 'agrovet') {
+        try {
+          await firebaseAuth.setCustomUserClaims(uid, { globalRole: 'agrovet' })
+        } catch (claimError) {
+          console.warn('Failed to sync globalRole claim to Firebase:', claimError)
+        }
+      }
 
       // 3. Upsert/find Agrovet user in Prisma
       let user = await this.prisma.user.findUnique({
@@ -311,6 +321,7 @@ export class AuthService {
           email: user.email,
           role: user.role,
           organizationId: user.organizationId,
+          isActive: user.isActive,
           shopScope
         }
       }

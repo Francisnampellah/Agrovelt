@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { body, validationResult } from 'express-validator'
 import { AuthService } from './auth.service'
 import { AuthenticatedRequest, LoginRequest, RegisterRequest, ExchangeRequest } from './types'
+import { formatCollectorAuthResponse, collectorUserFromExchange } from './collectorResponse'
 
 export class AuthController {
   constructor(private authService: AuthService) {}
@@ -44,7 +45,8 @@ export class AuthController {
   exchangeValidation = [
     body('firebaseToken').notEmpty().withMessage('Firebase token required'),
     body('clientType').isIn(['web', 'mobile']).withMessage('Invalid client type'),
-    body('deviceId').optional().isString()
+    body('deviceId').optional().isString(),
+    body('globalRole').optional().isString().withMessage('globalRole must be a string')
   ]
 
   logoutValidation = [
@@ -99,10 +101,17 @@ export class AuthController {
       const data: ExchangeRequest = req.body
       const result = await this.authService.exchangeFirebaseToken(data)
 
-      res.json({
-        message: 'Token exchange successful',
-        ...result
-      })
+      res.status(200).json(
+        formatCollectorAuthResponse(
+          'Token exchange successful',
+          {
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+            expiresIn: result.expiresIn
+          },
+          collectorUserFromExchange(result)
+        )
+      )
     } catch (error: any) {
       res.status(401).json({ error: error.message })
     }
@@ -115,7 +124,7 @@ export class AuthController {
       }
 
       const profile = await this.authService.getProfile(req.user.userId)
-      res.json(profile)
+      res.json({ data: profile, user: profile })
     } catch (error: any) {
       res.status(404).json({ error: error.message })
     }

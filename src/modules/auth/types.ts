@@ -18,6 +18,8 @@ export interface ExchangeRequest {
   firebaseToken: string
   clientType: 'web' | 'mobile'
   deviceId?: string
+  /** Fallback when ID token has no globalRole claim (e.g. mobile reads Firestore user_role) */
+  globalRole?: string
 }
 
 export interface TokenResponse {
@@ -30,6 +32,7 @@ export interface TokenResponse {
     email: string
     role: string
     organizationId?: string | null
+    isActive: boolean
     shopScope?: string[]
   }
 }
