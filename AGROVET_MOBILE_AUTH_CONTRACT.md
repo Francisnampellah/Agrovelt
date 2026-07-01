@@ -7,7 +7,7 @@ This document describes how the Afya Mnyama mobile app authenticates agrovet use
 | # | Requirement | Status |
 |---|-------------|--------|
 | 1 | Verify Firebase tokens for project `afya-mnyama-digital` | Config via `FIREBASE_PROJECT_ID` / credentials — **production must use afya-mnyama-digital** |
-| 2 | Allow exchange only when Firestore `users/{uid}.role` is `agrovet` | `exchangeFirebaseToken()` reads Firestore after token verification |
+| 2 | Allow regular agrovet exchange only when Firestore `users/{uid}.role` is `agrovet`; allow admin/dev only from verified token claim | `exchangeFirebaseToken()` checks token claims first, then Firestore for agrovet users |
 | 3 | Do not require `globalRole: "collector"` | Removed — `collector` is the API name only |
 | 4 | Auto-create collector user on first exchange | `exchangeFirebaseToken()` upserts Prisma user |
 | 5 | Return `organizationId: null` for new users | Yes — `user.organizationId` from DB |
@@ -17,7 +17,7 @@ This document describes how the Afya Mnyama mobile app authenticates agrovet use
 
 **Response helpers:** `src/modules/auth/collectorResponse.ts` — returns `token`, `accessToken`, `refreshToken`, `expiresIn`, `user` (with `isActive`) at top level and under `data` when nested payload is needed.
 
-**Role source of truth:** Mobile navigation and backend exchange now align on Firestore `users/{uid}.role`. Firebase custom claims are treated as secondary metadata and may be synced after successful exchange, but they do not decide access.
+**Role source of truth:** Mobile agrovet navigation and regular agrovet exchange align on Firestore `users/{uid}.role`. Admin/dev exchange is allowed only from the verified Firebase custom claim `globalRole`; admin/dev is not accepted from the request body.
 
 **Org users list:** Mobile references `GET /organizations/{id}/users`. This API exposes `GET /api/users` (ADMIN) instead — wire mobile to that or add an org-scoped route if needed.
 
@@ -48,6 +48,7 @@ Agrovet users must pass both. Firebase login alone is not enough to use POS feat
 
 - Stored in Firestore `users/{uid}.role` and may also be mirrored as Firebase custom claim `globalRole`.
 - `agrovet` is a valid `globalRole`.
+- `admin` and `dev` must be present as Firebase custom claims to access admin/dev Collector API flows.
 - **`collector` is NOT a `globalRole`.** “Collector” is only the name of the POS API service.
 
 Mobile runs collector auth when: `userRole.toLowerCase() == 'agrovet'`.

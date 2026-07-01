@@ -231,24 +231,36 @@ export class AuthService {
       const { uid, email, name: fbName } = decodedToken
       if (!email) throw new Error('Firebase token missing email')
 
-      // 2. Trust Firestore users/{uid}.role for agrovet eligibility.
-      const firebaseUserDoc = await firebaseFirestore.collection('users').doc(uid).get()
-      const firestoreRole = firebaseUserDoc.exists ? firebaseUserDoc.data()?.role : undefined
-      const firestoreResolution = validateFirestoreAgrovetRole(firestoreRole, bodyGlobalRole)
-      if (!firestoreResolution.role) {
-        throw new Error(`Unauthorized: ${firestoreResolution.rejectReason ?? 'Missing agrovet Firestore role'}`)
+      // 2. Admin/dev must come from the verified ID token claim.
+      // Regular agrovets still use Firestore users/{uid}.role as the access gate.
+      const tokenResolution = resolveExchangeGlobalRole(decodedToken.globalRole, bodyGlobalRole)
+      let exchangeRole = tokenResolution.role
+      let shouldSyncAgrovetClaim = false
+
+      if (exchangeRole !== 'admin' && exchangeRole !== 'dev') {
+        const firebaseUserDoc = await firebaseFirestore.collection('users').doc(uid).get()
+        const firestoreRole = firebaseUserDoc.exists ? firebaseUserDoc.data()?.role : undefined
+        const firestoreResolution = validateFirestoreAgrovetRole(firestoreRole, bodyGlobalRole)
+        if (!firestoreResolution.role) {
+          throw new Error(`Unauthorized: ${firestoreResolution.rejectReason ?? 'Missing agrovet Firestore role'}`)
+        }
+
+        exchangeRole = firestoreResolution.role
+        shouldSyncAgrovetClaim = firestoreResolution.source === 'body' || tokenResolution.source === 'body'
       }
 
-      // 3. Token/body role is only a hint for sync/debugging, not the access decision.
-      const tokenResolution = resolveExchangeGlobalRole(decodedToken.globalRole, bodyGlobalRole)
-      if (firestoreResolution.source === 'body' || tokenResolution.source === 'body') {
+      if (!exchangeRole) {
+        throw new Error(`Unauthorized: ${tokenResolution.rejectReason ?? 'Missing Agrovet exchange role'}`)
+      }
+
+      if (shouldSyncAgrovetClaim) {
         try {
           await firebaseAuth.setCustomUserClaims(uid, { globalRole: 'agrovet' })
         } catch (claimError) {
           console.warn('Failed to sync globalRole claim to Firebase:', claimError)
         }
       }
-      const localRole = mapFirebaseGlobalRoleToAgrovetRole(firestoreResolution.role)
+      const localRole = mapFirebaseGlobalRoleToAgrovetRole(exchangeRole)
 
       // 4. Upsert/find Agrovet user in Prisma
       let user = await this.prisma.user.findUnique({

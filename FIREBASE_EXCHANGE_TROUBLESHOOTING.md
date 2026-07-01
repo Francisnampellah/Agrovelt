@@ -28,9 +28,10 @@ POST /api/auth/exchange
 ### Resolution order
 
 1. **`globalRole` on verified ID token** (preferred)
-2. **`globalRole` in request body** — only `agrovet` allowed as fallback
-3. **`admin` / `dev`** — token claim only (not accepted from body)
-4. **`farmer` / `vet`** — rejected for this API (wrong product)
+2. **`admin` / `dev`** — token claim only, bypasses the Firestore agrovet check
+3. **Regular `agrovet` users** — Firestore `users/{uid}.role` must be `agrovet`
+4. **`globalRole` in request body** — only `agrovet` allowed as fallback for regular agrovets
+5. **`farmer` / `vet`** — rejected for this API (wrong product)
 
 ### After successful body fallback (`agrovet`)
 
