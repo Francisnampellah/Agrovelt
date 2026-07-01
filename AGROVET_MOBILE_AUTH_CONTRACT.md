@@ -7,7 +7,7 @@ This document describes how the Afya Mnyama mobile app authenticates agrovet use
 | # | Requirement | Status |
 |---|-------------|--------|
 | 1 | Verify Firebase tokens for project `afya-mnyama-digital` | Config via `FIREBASE_PROJECT_ID` / credentials — **production must use afya-mnyama-digital** |
-| 2 | Allow exchange only when platform role is `agrovet` (claim, body, or Firestore sync) | `resolveExchangeGlobalRole()` in `firebaseRoleMapping.ts` |
+| 2 | Allow exchange only when Firestore `users/{uid}.role` is `agrovet` | `exchangeFirebaseToken()` reads Firestore after token verification |
 | 3 | Do not require `globalRole: "collector"` | Removed — `collector` is the API name only |
 | 4 | Auto-create collector user on first exchange | `exchangeFirebaseToken()` upserts Prisma user |
 | 5 | Return `organizationId: null` for new users | Yes — `user.organizationId` from DB |
@@ -16,6 +16,8 @@ This document describes how the Afya Mnyama mobile app authenticates agrovet use
 | 8 | Error bodies `{ "error": "..." }` | Exchange/org controllers |
 
 **Response helpers:** `src/modules/auth/collectorResponse.ts` — returns `token`, `accessToken`, `refreshToken`, `expiresIn`, `user` (with `isActive`) at top level and under `data` when nested payload is needed.
+
+**Role source of truth:** Mobile navigation and backend exchange now align on Firestore `users/{uid}.role`. Firebase custom claims are treated as secondary metadata and may be synced after successful exchange, but they do not decide access.
 
 **Org users list:** Mobile references `GET /organizations/{id}/users`. This API exposes `GET /api/users` (ADMIN) instead — wire mobile to that or add an org-scoped route if needed.
 
@@ -44,7 +46,7 @@ Agrovet users must pass both. Firebase login alone is not enough to use POS feat
 
 ### 3.1 Platform role (`globalRole`) — Firebase / Firestore
 
-- Stored in Firestore `users/{uid}.role` and (ideally) mirrored as Firebase custom claim `globalRole`.
+- Stored in Firestore `users/{uid}.role` and may also be mirrored as Firebase custom claim `globalRole`.
 - `agrovet` is a valid `globalRole`.
 - **`collector` is NOT a `globalRole`.** “Collector” is only the name of the POS API service.
 
@@ -142,7 +144,7 @@ Backend also syncs this claim when exchange succeeds via body fallback (`globalR
 
 1. Create Firebase user in `afya-mnyama-digital`
 2. Firestore: `{ role: "agrovet", verification_status: "verified", on_boarding_complete: true }`
-3. Custom claim: `{ globalRole: "agrovet" }`
+3. Custom claim optional: `{ globalRole: "agrovet" }`
 4. `POST /api/auth/exchange` with real ID token + `globalRole: "agrovet"`
 5. Expect 200, JWT, `user.organizationId` null or set
 6. If null, `POST /api/organizations` → new JWT + `organizationId`

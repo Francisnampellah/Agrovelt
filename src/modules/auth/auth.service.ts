@@ -2,9 +2,13 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { PrismaClient, Role } from '@prisma/client'
-import { firebaseAuth } from '../../config/firebase'
+import { firebaseAuth, firebaseFirestore } from '../../config/firebase'
 import { LoginRequest, RegisterRequest, AuthResponse, JWTPayload, ExchangeRequest, TokenResponse } from './types'
-import { mapFirebaseGlobalRoleToAgrovetRole, resolveExchangeGlobalRole } from './firebaseRoleMapping'
+import {
+  mapFirebaseGlobalRoleToAgrovetRole,
+  resolveExchangeGlobalRole,
+  validateFirestoreAgrovetRole
+} from './firebaseRoleMapping'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m'
@@ -224,27 +228,29 @@ export class AuthService {
       // 1. Verify Firebase ID token
       const decodedToken = await firebaseAuth.verifyIdToken(firebaseToken)
 
-      // 2. Resolve platform globalRole (token claim, or body fallback for agrovet)
-      const resolved = resolveExchangeGlobalRole(decodedToken.globalRole, bodyGlobalRole)
-      if (!resolved.role) {
-        throw new Error(`Unauthorized: ${resolved.rejectReason ?? 'Missing agrovet platform role'}`)
-      }
-      const firebaseGlobalRole = resolved.role
-      const localRole = mapFirebaseGlobalRoleToAgrovetRole(firebaseGlobalRole)
-
       const { uid, email, name: fbName } = decodedToken
       if (!email) throw new Error('Firebase token missing email')
 
-      // Sync claim when mobile sent Firestore role in body but token lacks it
-      if (resolved.source === 'body' && firebaseGlobalRole === 'agrovet') {
+      // 2. Trust Firestore users/{uid}.role for agrovet eligibility.
+      const firebaseUserDoc = await firebaseFirestore.collection('users').doc(uid).get()
+      const firestoreRole = firebaseUserDoc.exists ? firebaseUserDoc.data()?.role : undefined
+      const firestoreResolution = validateFirestoreAgrovetRole(firestoreRole, bodyGlobalRole)
+      if (!firestoreResolution.role) {
+        throw new Error(`Unauthorized: ${firestoreResolution.rejectReason ?? 'Missing agrovet Firestore role'}`)
+      }
+
+      // 3. Token/body role is only a hint for sync/debugging, not the access decision.
+      const tokenResolution = resolveExchangeGlobalRole(decodedToken.globalRole, bodyGlobalRole)
+      if (firestoreResolution.source === 'body' || tokenResolution.source === 'body') {
         try {
           await firebaseAuth.setCustomUserClaims(uid, { globalRole: 'agrovet' })
         } catch (claimError) {
           console.warn('Failed to sync globalRole claim to Firebase:', claimError)
         }
       }
+      const localRole = mapFirebaseGlobalRoleToAgrovetRole(firestoreResolution.role)
 
-      // 3. Upsert/find Agrovet user in Prisma
+      // 4. Upsert/find Agrovet user in Prisma
       let user = await this.prisma.user.findUnique({
         where: { email },
         include: {
@@ -286,13 +292,13 @@ export class AuthService {
         throw new Error('User account is deactivated')
       }
 
-      // 4. Resolve shop scope
+      // 5. Resolve shop scope
       const shopScope = [
         ...user.shopsOwned.map(s => s.id),
         ...user.staffIn.map(s => s.shopId)
       ]
 
-      // 5. Issue backend tokens
+      // 6. Issue backend tokens
       const accessToken = this.generateToken({
         userId: user.id,
         email: user.email,

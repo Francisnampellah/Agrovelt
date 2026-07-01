@@ -103,6 +103,47 @@ export function resolveExchangeGlobalRole(
   }
 }
 
+export function validateFirestoreAgrovetRole(
+  firestoreRole: unknown,
+  bodyGlobalRole?: unknown
+): {
+  role: AgrovetExchangeGlobalRole | null
+  source: 'firestore' | 'body' | 'none'
+  rejectReason?: string
+} {
+  const platformFromFirestore = normalizePlatformGlobalRole(firestoreRole)
+  if (platformFromFirestore === 'agrovet') {
+    return { role: 'agrovet', source: 'firestore' }
+  }
+
+  if (platformFromFirestore === 'farmer' || platformFromFirestore === 'vet') {
+    return {
+      role: null,
+      source: 'none',
+      rejectReason:
+        `Firestore role "${platformFromFirestore}" cannot access Agrovet POS. Role must be "agrovet".`
+    }
+  }
+
+  const fromBody = normalizeAgrovetExchangeGlobalRole(bodyGlobalRole)
+  if (fromBody === 'agrovet') {
+    return { role: fromBody, source: 'body' }
+  }
+
+  const bodyDisplay =
+    bodyGlobalRole === undefined || bodyGlobalRole === null ? 'missing' : String(bodyGlobalRole)
+  const firestoreDisplay =
+    firestoreRole === undefined || firestoreRole === null ? 'missing' : String(firestoreRole)
+
+  return {
+    role: null,
+    source: 'none',
+    rejectReason:
+      `Missing agrovet Firestore role. Firestore role=${firestoreDisplay}, body globalRole=${bodyDisplay}. ` +
+      `Agrovet POS requires users/{uid}.role to be "agrovet".`
+  }
+}
+
 export function mapFirebaseGlobalRoleToAgrovetRole(role: AgrovetExchangeGlobalRole): Role {
   switch (role) {
     case 'dev':

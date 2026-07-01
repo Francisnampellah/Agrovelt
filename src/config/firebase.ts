@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin'
 import type { Auth } from 'firebase-admin/auth'
 import type { Database } from 'firebase-admin/database'
+import type { Firestore } from 'firebase-admin/firestore'
 
 import fs from 'fs'
 import path from 'path'
@@ -53,3 +54,4 @@ if (firebaseCredentials && !admin.apps.length) {
 }
 
 export const firebaseAuth: Auth = firebaseCredentials ? admin.auth() : ({} as Auth)
+export const firebaseFirestore: Firestore = firebaseCredentials ? admin.firestore() : ({} as Firestore)
