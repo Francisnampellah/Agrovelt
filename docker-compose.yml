@@ -1,20 +1,26 @@
-version: "3.8"
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
+    image: agrovelt-app
     container_name: agrovet_app
     restart: unless-stopped
     ports:
       - "4000:4000"
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql://johndoe:randompassword@db:5432/mydb?schema=public
       - ADMIN_NAME=nampellah
       - ADMIN_EMAIL=bnampellah1@gmail.com
       - ADMIN_PASSWORD=Admin123!
       - ADMIN_ORG_NAME=nampellah
+      - SEED_FIREBASE_PRODUCTS=true
+      - MNYAMA_SHOP_FIREBASE_PROJECT_ID=afya-mnyama-digital
+      - MNYAMA_SHOP_FIREBASE_API_KEY=AIzaSyARQmqdNHB5EW99lQtrhevPvbHc_J2AFyM
+      - FIREBASE_PRODUCTS_COLLECTION=products
+      - FIREBASE_PUBLISHED_ONLY=true
     command: sh -c "npx prisma db push && npm run prisma:seed && npx ts-node src/index.ts"
     depends_on:
       db:
@@ -42,9 +48,7 @@ services:
       retries: 5
 
   prisma:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: agrovelt-app
     container_name: agrovet_prisma
     command: npx prisma studio --port 5555 --browser none
     ports:
@@ -56,6 +60,7 @@ services:
         condition: service_healthy
     volumes:
       - .:/usr/src/app
+      - /usr/src/app/node_modules
 
 volumes:
   postgres_data:

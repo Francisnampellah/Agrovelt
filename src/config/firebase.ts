@@ -55,3 +55,4 @@ if (firebaseCredentials && !admin.apps.length) {
 
 export const firebaseAuth: Auth = firebaseCredentials ? admin.auth() : ({} as Auth)
 export const firebaseFirestore: Firestore = firebaseCredentials ? admin.firestore() : ({} as Firestore)
+export const firebaseProjectId: string | undefined = firebaseCredentials?.project_id
