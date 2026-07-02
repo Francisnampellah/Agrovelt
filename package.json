@@ -10,6 +10,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "seed:firebase-products": "ts-node scripts/seed-products-from-firebase.ts",
+    "seed:firebase-products:dry-run": "ts-node scripts/seed-products-from-firebase.ts --dry-run",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "prisma": {

@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import * as dotenv from 'dotenv'
 import { PrismaClient, Role } from '@prisma/client'
 import { seedCatalog } from './catalog-seed'
+import { seedProductsFromFirebase } from '../src/modules/products/firebase-catalog-seed.service'
 
 dotenv.config()
 
@@ -77,6 +78,24 @@ async function main() {
   console.log(`Super Admin user ready: ${superAdmin1.email}`)
 
   await seedCatalog(prisma)
+
+  if (process.env.SEED_FIREBASE_PRODUCTS === 'true') {
+    try {
+      const firebaseSeed = await seedProductsFromFirebase(prisma, {
+        ...(process.env.FIREBASE_PRODUCTS_COLLECTION
+          ? { productsCollection: process.env.FIREBASE_PRODUCTS_COLLECTION }
+          : {}),
+        publishedOnly: process.env.FIREBASE_PUBLISHED_ONLY !== 'false'
+      })
+      console.log('Mnyama Shop Firebase catalog seed:', JSON.stringify(firebaseSeed))
+    } catch (error: any) {
+      console.error('Mnyama Shop Firebase catalog seed failed:', error?.message ?? error)
+    }
+  } else {
+    console.log(
+      'Skipping Firebase product seed. Set SEED_FIREBASE_PRODUCTS=true to import from Firestore /products.'
+    )
+  }
 }
 
 main()
