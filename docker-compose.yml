@@ -16,11 +16,11 @@ services:
       - ADMIN_EMAIL=bnampellah1@gmail.com
       - ADMIN_PASSWORD=Admin123!
       - ADMIN_ORG_NAME=nampellah
-      - SEED_FIREBASE_PRODUCTS=true
-      - MNYAMA_SHOP_FIREBASE_PROJECT_ID=afya-mnyama-digital
-      - MNYAMA_SHOP_FIREBASE_API_KEY=AIzaSyARQmqdNHB5EW99lQtrhevPvbHc_J2AFyM
-      - FIREBASE_PRODUCTS_COLLECTION=products
-      - FIREBASE_PUBLISHED_ONLY=true
+      - SEED_FIREBASE_PRODUCTS=${SEED_FIREBASE_PRODUCTS:-false}
+      - MNYAMA_SHOP_FIREBASE_PROJECT_ID=${MNYAMA_SHOP_FIREBASE_PROJECT_ID:-afya-mnyama-digital}
+      - MNYAMA_SHOP_FIREBASE_API_KEY=${MNYAMA_SHOP_FIREBASE_API_KEY:-}
+      - FIREBASE_PRODUCTS_COLLECTION=${FIREBASE_PRODUCTS_COLLECTION:-products}
+      - FIREBASE_PUBLISHED_ONLY=${FIREBASE_PUBLISHED_ONLY:-true}
     command: sh -c "npx prisma db push && npm run prisma:seed && npx ts-node src/index.ts"
     depends_on:
       db:

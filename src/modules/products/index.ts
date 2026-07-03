@@ -6,7 +6,7 @@ import { BulkProductService } from './bulk-products.service'
 export function createProductModule(prisma: PrismaClient) {
   const productService = new ProductService(prisma)
   const bulkProductService = new BulkProductService(prisma)
-  const productController = new ProductController(productService, bulkProductService)
+  const productController = new ProductController(productService, bulkProductService, prisma)
 
   return {
     productService,

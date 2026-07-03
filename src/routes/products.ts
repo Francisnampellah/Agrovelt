@@ -144,6 +144,41 @@ router.get('/products', authMiddleware.authenticate, productController.getAllPro
 
 /**
  * @swagger
+ * /api/products/sync/mnyama-shop:
+ *   post:
+ *     summary: Sync Mnyama Shop Firestore products into the Agrovet catalog
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Imports published Mnyama Shop products from Firestore into the Agrovet
+ *       global product catalog. Uses the Firestore product document ID as both
+ *       the Product ID and the default ProductVariant ID.
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               dryRun:
+ *                 type: boolean
+ *                 default: false
+ *     responses:
+ *       200:
+ *         description: Sync summary
+ *       403:
+ *         description: Admin or super admin role required
+ */
+router.post(
+  '/products/sync/mnyama-shop',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.syncMnyamaShopCatalog
+)
+
+/**
+ * @swagger
  * /api/products/{id}:
  *   get:
  *     summary: Get product by ID

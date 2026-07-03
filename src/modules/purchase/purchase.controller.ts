@@ -14,7 +14,7 @@ export class PurchaseController {
     body('shopId').isUUID().withMessage('Valid shop ID is required'),
     body('supplierId').optional().isUUID(),
     body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
-    body('items.*.variantId').isUUID(),
+    body('items.*.variantId').isString().notEmpty().withMessage('Valid variant ID is required'),
     body('items.*.quantity').isInt({ min: 1 }),
     body('items.*.costPrice').isFloat({ min: 0 }),
     body('items.*.batchNumber').optional().isString(),

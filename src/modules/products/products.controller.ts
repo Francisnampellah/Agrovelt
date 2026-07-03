@@ -2,13 +2,16 @@ import { Request, Response } from 'express'
 import { body, validationResult, query } from 'express-validator'
 import { ProductService } from './products.service'
 import { BulkProductService } from './bulk-products.service'
+import { seedProductsFromFirebase } from './firebase-catalog-seed.service'
 import { parseExcelFile } from '../../utils/excelParser'
 import { generateProductTemplate, saveTemplate } from '../../utils/excelTemplateGenerator'
+import { PrismaClient } from '@prisma/client'
 
 export class ProductController {
   constructor(
     private productService: ProductService,
-    private bulkProductService: BulkProductService
+    private bulkProductService: BulkProductService,
+    private prisma?: PrismaClient
   ) {}
 
   categoryValidation = [
@@ -26,7 +29,7 @@ export class ProductController {
   ]
 
   variantValidation = [
-    body('productId').isUUID().withMessage('Valid product ID is required'),
+    body('productId').isString().notEmpty().withMessage('Valid product ID is required'),
     body('name').trim().notEmpty().withMessage('Variant name is required'),
     body('sku').trim().notEmpty().withMessage('SKU is required')
   ]
@@ -191,6 +194,27 @@ export class ProductController {
       })
     } catch (error: any) {
       res.status(500).json({ error: error.message })
+    }
+  }
+
+  syncMnyamaShopCatalog = async (req: Request, res: Response) => {
+    try {
+      if (!this.prisma) {
+        return res.status(500).json({ error: 'Prisma client is not configured' })
+      }
+
+      const dryRun = req.body?.dryRun === true || String(req.query.dryRun) === 'true'
+      const result = await seedProductsFromFirebase(this.prisma, {
+        ...(process.env.FIREBASE_PRODUCTS_COLLECTION
+          ? { productsCollection: process.env.FIREBASE_PRODUCTS_COLLECTION }
+          : {}),
+        publishedOnly: process.env.FIREBASE_PUBLISHED_ONLY !== 'false',
+        dryRun
+      })
+
+      res.json({ data: result })
+    } catch (error: any) {
+      res.status(400).json({ error: error.message })
     }
   }
 }

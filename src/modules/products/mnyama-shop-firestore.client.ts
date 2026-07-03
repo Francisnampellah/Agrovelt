@@ -4,7 +4,6 @@
  */
 
 const DEFAULT_PROJECT_ID = 'afya-mnyama-digital'
-const DEFAULT_API_KEY = 'AIzaSyARQmqdNHB5EW99lQtrhevPvbHc_J2AFyM'
 
 export type MnyamaShopFirestoreDoc = {
   id: string
@@ -12,10 +11,14 @@ export type MnyamaShopFirestoreDoc = {
 }
 
 function getMnyamaShopConfig() {
-  return {
-    projectId: process.env.MNYAMA_SHOP_FIREBASE_PROJECT_ID ?? DEFAULT_PROJECT_ID,
-    apiKey: process.env.MNYAMA_SHOP_FIREBASE_API_KEY ?? DEFAULT_API_KEY
+  const projectId = process.env.MNYAMA_SHOP_FIREBASE_PROJECT_ID ?? DEFAULT_PROJECT_ID
+  const apiKey = process.env.MNYAMA_SHOP_FIREBASE_API_KEY
+
+  if (!apiKey) {
+    throw new Error('MNYAMA_SHOP_FIREBASE_API_KEY is not configured')
   }
+
+  return { projectId, apiKey }
 }
 
 function parseFirestoreValue(value: Record<string, unknown>): unknown {

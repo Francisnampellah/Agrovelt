@@ -13,14 +13,14 @@ export class InventoryController {
 
   updateValidation = [
     body('shopId').isUUID().withMessage('Invalid shop ID'),
-    body('variantId').isUUID().withMessage('Invalid variant ID'),
+    body('variantId').isString().notEmpty().withMessage('Invalid variant ID'),
     body('quantity').isInt({ min: 0 }).withMessage('Quantity must be >= 0'),
     body('costPrice').isFloat({ min: 0 }).withMessage('Cost price must be >= 0')
   ]
 
   adjustValidation = [
     body('shopId').isUUID().withMessage('Invalid shop ID'),
-    body('variantId').isUUID().withMessage('Invalid variant ID'),
+    body('variantId').isString().notEmpty().withMessage('Invalid variant ID'),
     body('change').isInt().withMessage('Change must be an integer'),
     body('type').isIn(['PURCHASE', 'SALE', 'ADJUSTMENT', 'RETURN']).withMessage('Invalid transaction type'),
     body('referenceId').optional().isString()
