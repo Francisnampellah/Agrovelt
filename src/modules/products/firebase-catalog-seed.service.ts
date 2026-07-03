@@ -192,7 +192,7 @@ async function loadProductDocuments(
   productsCollection: string,
   publishedOnly: boolean
 ): Promise<{ source: 'client-api' | 'admin-sdk'; docs: ProductDoc[] }> {
-  const mnyamaProject = process.env.MNYAMA_SHOP_FIREBASE_PROJECT_ID ?? 'afya-mnyama-digital'
+  const mnyamaProject = process.env.FIREBASE_PROJECT_ID ?? 'afya-mnyama-digital'
 
   if (publishedOnly) {
     try {
@@ -210,7 +210,7 @@ async function loadProductDocuments(
   if (!hasMnyamaShopAdminCredentials()) {
     throw new Error(
       'Could not load Mnyama Shop products via client API and no afya-mnyama-digital Admin credentials found. ' +
-      'Set MNYAMA_SHOP_FIREBASE_API_KEY or add afya-mnyama-digital service account JSON.'
+      'Set FIREBASE_API_KEY or add afya-mnyama-digital service account JSON.'
     )
   }
 

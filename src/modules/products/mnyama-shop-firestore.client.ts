@@ -11,11 +11,11 @@ export type MnyamaShopFirestoreDoc = {
 }
 
 function getMnyamaShopConfig() {
-  const projectId = process.env.MNYAMA_SHOP_FIREBASE_PROJECT_ID ?? DEFAULT_PROJECT_ID
-  const apiKey = process.env.MNYAMA_SHOP_FIREBASE_API_KEY
+  const projectId = process.env.FIREBASE_PROJECT_ID ?? DEFAULT_PROJECT_ID
+  const apiKey = process.env.FIREBASE_API_KEY
 
   if (!apiKey) {
-    throw new Error('MNYAMA_SHOP_FIREBASE_API_KEY is not configured')
+    throw new Error('FIREBASE_API_KEY is not configured')
   }
 
   return { projectId, apiKey }

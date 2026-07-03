@@ -3,7 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore'
 import fs from 'fs'
 import path from 'path'
 
-const MNYAMA_PROJECT_ID = process.env.MNYAMA_SHOP_FIREBASE_PROJECT_ID ?? 'afya-mnyama-digital'
+const MNYAMA_PROJECT_ID = process.env.FIREBASE_PROJECT_ID ?? 'afya-mnyama-digital'
 const MNYAMA_APP_NAME = 'mnyama-shop'
 
 function readJsonFile(filePath: string): Record<string, unknown> | null {
