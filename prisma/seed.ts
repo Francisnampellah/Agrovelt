@@ -77,7 +77,13 @@ async function main() {
 
   console.log(`Super Admin user ready: ${superAdmin1.email}`)
 
-  await seedCatalog(prisma)
+  if (process.env.SEED_BUILTIN_CATALOG === 'true') {
+    await seedCatalog(prisma)
+  } else {
+    console.log(
+      'Skipping built-in catalog seed. Set SEED_BUILTIN_CATALOG=true to import demo products.'
+    )
+  }
 
   if (process.env.SEED_FIREBASE_PRODUCTS === 'true') {
     try {
