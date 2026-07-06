@@ -353,6 +353,7 @@ export class AuthService {
       where: { id: userId },
       select: {
         id: true,
+        firebaseUid: true,
         name: true,
         email: true,
         role: true,
