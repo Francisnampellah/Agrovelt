@@ -5,7 +5,8 @@ import { seedProductsFromFirebase } from '../src/modules/products/firebase-catal
 /**
  * Seed Mnyama Shop products from Firestore (afya-mnyama-digital / products).
  *
- * Requires Firebase Admin credentials for afya-mnyama-digital.
+ * Requires FIREBASE_API_KEY (or MNYAMA_SHOP_FIREBASE_API_KEY) to read Firestore.
+ * Products must include `agrovet_catalog.variant_id` (used as ProductVariant.id).
  *
  * Usage:
  *   npm run seed:firebase-products:dry-run
