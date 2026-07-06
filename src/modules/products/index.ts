@@ -21,11 +21,12 @@ export {
   ProductController
 }
 
-export { seedProductsFromFirebase, mapMnyamaShopProduct } from './firebase-catalog-seed.service'
+export { seedProductsFromFirebase, mapMnyamaShopProduct, parseAgrovetCatalog } from './firebase-catalog-seed.service'
 export type {
   FirebaseCatalogSeedOptions,
   FirebaseCatalogSeedResult,
-  MnyamaShopFirebaseProduct
+  MnyamaShopFirebaseProduct,
+  AgrovetCatalogLink
 } from './firebase-catalog-seed.service'
 
 export * from './types'

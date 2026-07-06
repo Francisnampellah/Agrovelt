@@ -152,8 +152,8 @@ router.get('/products', authMiddleware.authenticate, productController.getAllPro
  *       - bearerAuth: []
  *     description: |
  *       Imports published Mnyama Shop products from Firestore into the Agrovet
- *       global product catalog. Uses the Firestore product document ID as both
- *       the Product ID and the default ProductVariant ID.
+ *       global product catalog. Uses `agrovet_catalog.product_id` for Product.id and
+ *       `agrovet_catalog.variant_id` for ProductVariant.id when present.
  *     requestBody:
  *       required: false
  *       content:
