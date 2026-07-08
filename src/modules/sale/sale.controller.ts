@@ -2,7 +2,7 @@ import { Response } from 'express'
 import { body, query, validationResult } from 'express-validator'
 import { AuthenticatedRequest } from '../auth/types'
 import { NotificationService } from '../notifications/notification.service'
-import { SaleService } from './sale.service'
+import { SaleCreationConflictError, SaleService } from './sale.service'
 import { CreateSaleRequest } from './types'
 
 export class SaleController {
@@ -66,7 +66,8 @@ export class SaleController {
 
       res.status(201).json({ data: sale, receipt: sale.receipt, notification })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      const statusCode = error instanceof SaleCreationConflictError ? error.statusCode : 400
+      res.status(statusCode).json({ error: error.message })
     }
   }
 

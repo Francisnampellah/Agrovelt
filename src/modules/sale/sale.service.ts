@@ -1,9 +1,27 @@
-﻿import { PrismaClient, SaleStatus } from '@prisma/client'
+﻿import { Prisma, PrismaClient, SaleStatus } from '@prisma/client'
 import { InventoryService } from '../inventory/inventory.service'
 import { CashFlowService } from '../cashflow/cashflow.service'
 import { PricingService } from '../pricing/pricing.service'
 import { ReceiptService } from '../receipt/receipt.service'
 import { CreateSaleRequest } from './types'
+
+const MAX_SALE_CREATE_RETRIES = 3
+
+interface PrismaKnownRequestErrorLike {
+  code?: string
+  meta?: {
+    target?: unknown
+  }
+}
+
+export class SaleCreationConflictError extends Error {
+  readonly statusCode = 409
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'SaleCreationConflictError'
+  }
+}
 
 export class SaleService {
   constructor(
@@ -14,116 +32,148 @@ export class SaleService {
     private receiptService: ReceiptService
   ) {}
 
+  private shouldRetrySaleCreation(error: unknown): boolean {
+    const prismaError = error as PrismaKnownRequestErrorLike
+
+    if (prismaError?.code === 'P2034') {
+      return true
+    }
+
+    return (
+      prismaError?.code === 'P2002' &&
+      Array.isArray(prismaError.meta?.target) &&
+      prismaError.meta.target.includes('receiptNumber')
+    )
+  }
+
   async createSale(data: CreateSaleRequest) {
     const variantIds = data.items.map(i => i.variantId)
     await this.inventoryService.assertSameOrg(data.shopId, variantIds)
 
-    return this.prisma.$transaction(async (tx) => {
-      let subtotal = 0
-      const resolvedItems: Array<{
-        variantId: string
-        quantity: number
-        price: number
-        batchNumber: string
-      }> = []
+    for (let attempt = 1; attempt <= MAX_SALE_CREATE_RETRIES; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          let subtotal = 0
+          const resolvedItems: Array<{
+            variantId: string
+            quantity: number
+            price: number
+            batchNumber: string
+          }> = []
 
-      for (const item of data.items) {
-        let price = item.price
-        if (price === undefined) {
-          price = await this.pricingService.resolveSellingPrice(data.shopId, item.variantId)
-        } else {
-          await this.pricingService.validateSalePrice(data.shopId, item.variantId, price)
-        }
+          for (const item of data.items) {
+            let price = item.price
+            if (price === undefined) {
+              price = await this.pricingService.resolveSellingPrice(data.shopId, item.variantId)
+            } else {
+              await this.pricingService.validateSalePrice(data.shopId, item.variantId, price)
+            }
 
-        const batchNumber = item.batchNumber ?? 'DEFAULT'
-        subtotal += item.quantity * price
-        resolvedItems.push({
-          variantId: item.variantId,
-          quantity: item.quantity,
-          price,
-          batchNumber
-        })
-      }
-
-      const discount = data.discount ?? 0
-      const tax = data.tax ?? 0
-      const total = data.total ?? (subtotal - discount + tax)
-
-      const sale = await tx.sale.create({
-        data: {
-          shopId: data.shopId,
-          subtotal,
-          discount,
-          tax,
-          total,
-          status: SaleStatus.COMPLETED,
-          createdBy: data.createdBy
-        }
-      })
-
-      for (const item of resolvedItems) {
-        await tx.saleItem.create({
-          data: {
-            saleId: sale.id,
-            variantId: item.variantId,
-            batchNumber: item.batchNumber,
-            quantity: item.quantity,
-            price: item.price
+            const batchNumber = item.batchNumber ?? 'DEFAULT'
+            subtotal += item.quantity * price
+            resolvedItems.push({
+              variantId: item.variantId,
+              quantity: item.quantity,
+              price,
+              batchNumber
+            })
           }
+
+          const discount = data.discount ?? 0
+          const tax = data.tax ?? 0
+          const total = data.total ?? (subtotal - discount + tax)
+
+          const sale = await tx.sale.create({
+            data: {
+              shopId: data.shopId,
+              subtotal,
+              discount,
+              tax,
+              total,
+              status: SaleStatus.COMPLETED,
+              createdBy: data.createdBy
+            }
+          })
+
+          for (const item of resolvedItems) {
+            await tx.saleItem.create({
+              data: {
+                saleId: sale.id,
+                variantId: item.variantId,
+                batchNumber: item.batchNumber,
+                quantity: item.quantity,
+                price: item.price
+              }
+            })
+
+            await this.inventoryService.deductSaleStock({
+              shopId: data.shopId,
+              variantId: item.variantId,
+              batchNumber: item.batchNumber,
+              quantity: item.quantity,
+              saleId: sale.id
+            }, tx)
+          }
+
+          await tx.payment.create({
+            data: {
+              saleId: sale.id,
+              amount: total,
+              method: data.paymentMethod
+            }
+          })
+
+          await this.cashFlowService.record(tx, {
+            shopId: data.shopId,
+            direction: 'IN',
+            category: 'SALE',
+            amount: total,
+            referenceId: sale.id,
+            note: `Sale #${sale.id}`,
+            recordedBy: data.createdBy
+          })
+
+          const shop = await tx.shop.findUnique({
+            where: { id: data.shopId },
+            select: { organizationId: true }
+          })
+
+          if (!shop) {
+            throw new Error(`Shop ${data.shopId} not found`)
+          }
+
+          await this.receiptService.createForSale({
+            saleId: sale.id,
+            shopId: data.shopId,
+            organizationId: shop.organizationId,
+            issuedBy: data.createdBy
+          }, tx)
+
+          return tx.sale.findUnique({
+            where: { id: sale.id },
+            include: {
+              items: { include: { variant: { include: { product: true } } } },
+              payments: true,
+              receipt: true
+            }
+          })
+        }, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable
         })
-
-        await this.inventoryService.deductSaleStock({
-          shopId: data.shopId,
-          variantId: item.variantId,
-          batchNumber: item.batchNumber,
-          quantity: item.quantity,
-          saleId: sale.id
-        }, tx)
-      }
-
-      await tx.payment.create({
-        data: {
-          saleId: sale.id,
-          amount: total,
-          method: data.paymentMethod
+      } catch (error) {
+        if (!this.shouldRetrySaleCreation(error)) {
+          throw error
         }
-      })
 
-      await this.cashFlowService.record(tx, {
-        shopId: data.shopId,
-        direction: 'IN',
-        category: 'SALE',
-        amount: total,
-        referenceId: sale.id,
-        note: `Sale #${sale.id}`,
-        recordedBy: data.createdBy
-      })
-
-      const shop = await tx.shop.findUnique({
-        where: { id: data.shopId },
-        select: { organizationId: true }
-      })
-
-      if (!shop) {
-        throw new Error(`Shop ${data.shopId} not found`)
-      }
-
-      await this.receiptService.createForSale({
-        saleId: sale.id,
-        shopId: data.shopId,
-        organizationId: shop.organizationId,
-        issuedBy: data.createdBy
-      }, tx)
-
-      return tx.sale.findUnique({
-        where: { id: sale.id },
-        include: {
-          items: { include: { variant: { include: { product: true } } } },
-          payments: true,
-          receipt: true
+        if (attempt === MAX_SALE_CREATE_RETRIES) {
+          throw new SaleCreationConflictError(
+            'Sale creation conflicted with another request. Please retry.'
+          )
         }
-      })
-    })
+      }
+    }
+
+    throw new SaleCreationConflictError('Sale creation conflicted with another request. Please retry.')
   }
 
   async getSalesByShop(shopId: string) {
