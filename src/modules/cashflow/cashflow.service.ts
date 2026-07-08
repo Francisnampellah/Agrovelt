@@ -28,13 +28,38 @@ export class CashFlowService {
     return this.summarize(entries)
   }
 
-  // Same rollup as getSummary, across every shop in the organization
-  async getSummaryByOrganization(organizationId: string, from: Date, to: Date) {
+  // Category-level rollup across every shop in the organization — distinct
+  // from getSummary's IN/OUT split, since the Finance hub needs revenue vs
+  // expenses vs purchases vs refunds broken out individually.
+  async getFinanceSummaryByOrganization(organizationId: string, from: Date, to: Date) {
     const entries = await this.prisma.cashFlowEntry.findMany({
       where: { shop: { organizationId }, createdAt: { gte: from, lte: to } }
     })
 
-    return this.summarize(entries)
+    const sumBy = (category: CashFlowCategory) =>
+      entries.filter(e => e.category === category).reduce((s, e) => s + e.amount, 0)
+    const countBy = (category: CashFlowCategory) =>
+      entries.filter(e => e.category === category).length
+
+    const totalRevenue = sumBy('SALE')
+    const totalExpenses = sumBy('EXPENSE')
+    const totalPurchases = sumBy('PURCHASE')
+    const totalRefunds = sumBy('REFUND')
+
+    return {
+      totalRevenue,
+      salesCount: countBy('SALE'),
+      totalExpenses,
+      expenseCount: countBy('EXPENSE'),
+      totalPurchases,
+      purchaseCount: countBy('PURCHASE'),
+      totalRefunds,
+      refundCount: countBy('REFUND'),
+      // Refunds are recorded as their own OUT entry (not a reversal of the
+      // original SALE entry), so they must be subtracted here explicitly —
+      // otherwise a fully-refunded shop shows inflated revenue and net income.
+      netEstimate: totalRevenue - totalExpenses - totalPurchases - totalRefunds
+    }
   }
 
   async getEntries(shopId: string, filters: {
@@ -48,16 +73,20 @@ export class CashFlowService {
     return this.queryEntries({ shopId }, filters)
   }
 
-  // Same activity feed as getEntries, across every shop in the organization
+  // Org-wide activity feed for the Finance hub — spans every shop, so each
+  // entry includes its shop so the UI can show which shop it came from.
   async getEntriesByOrganization(organizationId: string, filters: {
-    direction?: 'IN' | 'OUT'
-    category?: CashFlowCategory
-    from?: Date
-    to?: Date
     cursor?: string
     take?: number
-  }) {
-    return this.queryEntries({ shop: { organizationId } }, filters)
+  } = {}) {
+    const { cursor, take = 50 } = filters
+    return this.prisma.cashFlowEntry.findMany({
+      where: { shop: { organizationId } },
+      take,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+      orderBy: { createdAt: 'desc' },
+      include: { shop: { select: { id: true, name: true } } }
+    })
   }
 
   private async queryEntries(scope: { shopId: string } | { shop: { organizationId: string } }, filters: {

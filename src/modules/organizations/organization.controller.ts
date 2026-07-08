@@ -317,8 +317,18 @@ export class OrganizationController {
       await this.assertOrgAccess(req, organizationId)
 
       const { from, to } = this.parseDateRange(req)
-      const summary = await this.cashFlowService.getSummaryByOrganization(organizationId, from, to)
-      res.json({ data: summary })
+      const [cashSummary, stockSummary] = await Promise.all([
+        this.cashFlowService.getFinanceSummaryByOrganization(organizationId, from, to),
+        this.inventoryService.getStockSummaryByOrganization(organizationId)
+      ])
+
+      res.json({
+        data: {
+          ...cashSummary,
+          stockUnitsOnHand: stockSummary.totalUnits,
+          lowStockCount: stockSummary.lowStockCount
+        }
+      })
     } catch (error: any) {
       const status = error.status ?? this.orgErrorStatus(error.message)
       res.status(status).json({ error: error.message })
@@ -333,9 +343,8 @@ export class OrganizationController {
       const organizationId = String(req.params.id)
       await this.assertOrgAccess(req, organizationId)
 
-      const { from, to } = this.parseDateRange(req)
       const take = req.query.take ? Number(req.query.take) : 20
-      const activity = await this.cashFlowService.getEntriesByOrganization(organizationId, { from, to, take })
+      const activity = await this.cashFlowService.getEntriesByOrganization(organizationId, { take })
       res.json({ data: activity })
     } catch (error: any) {
       const status = error.status ?? this.orgErrorStatus(error.message)
