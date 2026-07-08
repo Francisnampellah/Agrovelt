@@ -74,11 +74,12 @@ model Organization {
   createdAt   DateTime @default(now())
 
   // Core entities strictly isolated per organization
-  users     User[]
-  shops     Shop[]
-  suppliers Supplier[]
-  receipts      Receipt[]
-  notifications Notification[]
+  users           User[]
+  shops           Shop[]
+  suppliers       Supplier[]
+  receipts        Receipt[]
+  receiptCounters ReceiptCounter[]
+  notifications   Notification[]
 }
 
 // ------------------------------------------------------
@@ -510,6 +511,18 @@ model Receipt {
   sale         Sale         @relation(fields: [saleId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
   shop         Shop         @relation(fields: [shopId], references: [id])
+}
+
+model ReceiptCounter {
+  organizationId String
+  dateKey        String
+  lastValue      Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, dateKey])
 }
 
 model Notification {
