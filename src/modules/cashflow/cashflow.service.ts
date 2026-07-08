@@ -25,15 +25,16 @@ export class CashFlowService {
       where: { shopId, createdAt: { gte: from, lte: to } }
     })
 
-    const totalIn  = entries.filter(e => e.direction === 'IN').reduce((s, e) => s + e.amount, 0)
-    const totalOut = entries.filter(e => e.direction === 'OUT').reduce((s, e) => s + e.amount, 0)
-    
-    return {
-      totalIn,
-      totalOut,
-      net: totalIn - totalOut,
-      breakdown: this.groupByCategory(entries)
-    }
+    return this.summarize(entries)
+  }
+
+  // Same rollup as getSummary, across every shop in the organization
+  async getSummaryByOrganization(organizationId: string, from: Date, to: Date) {
+    const entries = await this.prisma.cashFlowEntry.findMany({
+      where: { shop: { organizationId }, createdAt: { gte: from, lte: to } }
+    })
+
+    return this.summarize(entries)
   }
 
   async getEntries(shopId: string, filters: {
@@ -44,10 +45,33 @@ export class CashFlowService {
     cursor?: string
     take?: number
   }) {
+    return this.queryEntries({ shopId }, filters)
+  }
+
+  // Same activity feed as getEntries, across every shop in the organization
+  async getEntriesByOrganization(organizationId: string, filters: {
+    direction?: 'IN' | 'OUT'
+    category?: CashFlowCategory
+    from?: Date
+    to?: Date
+    cursor?: string
+    take?: number
+  }) {
+    return this.queryEntries({ shop: { organizationId } }, filters)
+  }
+
+  private async queryEntries(scope: { shopId: string } | { shop: { organizationId: string } }, filters: {
+    direction?: 'IN' | 'OUT'
+    category?: CashFlowCategory
+    from?: Date
+    to?: Date
+    cursor?: string
+    take?: number
+  }) {
     const { direction, category, from, to, cursor, take = 50 } = filters
     return this.prisma.cashFlowEntry.findMany({
       where: {
-        shopId,
+        ...scope,
         ...(direction && { direction }),
         ...(category && { category }),
         ...(from || to ? {
@@ -61,6 +85,18 @@ export class CashFlowService {
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
       orderBy: { createdAt: 'desc' }
     })
+  }
+
+  private summarize(entries: CashFlowEntry[]) {
+    const totalIn  = entries.filter(e => e.direction === 'IN').reduce((s, e) => s + e.amount, 0)
+    const totalOut = entries.filter(e => e.direction === 'OUT').reduce((s, e) => s + e.amount, 0)
+
+    return {
+      totalIn,
+      totalOut,
+      net: totalIn - totalOut,
+      breakdown: this.groupByCategory(entries)
+    }
   }
 
   private groupByCategory(entries: CashFlowEntry[]) {

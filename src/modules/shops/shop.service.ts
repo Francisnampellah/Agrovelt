@@ -5,7 +5,7 @@ export class ShopService {
   constructor(private prisma: PrismaClient) {}
 
   async createShop(data: CreateShopRequest): Promise<ShopResponse> {
-    const { name, location, ownerId, parentId, organizationId } = data
+    const { name, location, ownerId, parentId, organizationId, region, country, district, streetAddress, phoneNumber } = data
 
     // Check if owner exists
     const owner = await this.prisma.user.findUnique({
@@ -32,6 +32,11 @@ export class ShopService {
       organization: { connect: { id: organizationId } },
       owner: { connect: { id: ownerId } },
       location: location ?? null,
+      region,
+      country,
+      district,
+      streetAddress,
+      phoneNumber,
       ...(parentId && { parent: { connect: { id: parentId } } })
     }
 
