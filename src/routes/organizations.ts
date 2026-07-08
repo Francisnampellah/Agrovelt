@@ -133,6 +133,39 @@ export function createOrganizationRoutes(
     organizationController.getStock
   )
 
+  router.get(
+    '/organizations/:id/finance/summary',
+    authMiddleware.authenticate,
+    organizationController.financeQueryValidation,
+    organizationController.getFinanceSummary
+  )
+
+  router.get(
+    '/organizations/:id/finance/activity',
+    authMiddleware.authenticate,
+    organizationController.financeQueryValidation,
+    organizationController.getFinanceActivity
+  )
+
+  router.get(
+    '/organizations/:id/users',
+    authMiddleware.authenticate,
+    organizationController.getOrgUsers
+  )
+
+  router.post(
+    '/organizations/:id/users',
+    authMiddleware.authenticate,
+    organizationController.createOrgUserValidation,
+    organizationController.createOrgUser
+  )
+
+  router.put(
+    '/organizations/:id/users/:userId/deactivate',
+    authMiddleware.authenticate,
+    organizationController.deactivateOrgUser
+  )
+
 /**
  * @swagger
  * /api/organizations:

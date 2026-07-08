@@ -137,6 +137,11 @@ model Shop {
   type           ShopType @default(MAIN)
   name           String
   location       String?
+  region         String?
+  country        String?
+  district       String?
+  streetAddress  String?
+  phoneNumber    String?
 
   // Branching hierarchy
   // Rule: MAIN shops have parentId = null. 
