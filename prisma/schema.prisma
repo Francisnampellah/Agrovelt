@@ -74,11 +74,12 @@ model Organization {
   createdAt   DateTime @default(now())
 
   // Core entities strictly isolated per organization
-  users     User[]
-  shops     Shop[]
-  suppliers Supplier[]
-  receipts      Receipt[]
-  notifications Notification[]
+  users           User[]
+  shops           Shop[]
+  suppliers       Supplier[]
+  receipts        Receipt[]
+  receiptCounters ReceiptCounter[]
+  notifications   Notification[]
 }
 
 // ------------------------------------------------------
@@ -261,6 +262,7 @@ model Inventory {
 
   shop    Shop           @relation(fields: [shopId], references: [id])
   variant ProductVariant @relation(fields: [variantId], references: [id])
+  saleItems SaleItem[]
 
   // Stock is uniquely tracked per shop, variant, AND batch
   @@unique([shopId, variantId, batchNumber])
@@ -445,13 +447,15 @@ model Sale {
 model SaleItem {
   id          String  @id @default(uuid())
   saleId      String
+  inventoryId String?
   variantId   String
   batchNumber String? // Which batch was sold (for FEFO auditing)
   quantity    Int
   price       Float
 
-  sale    Sale           @relation(fields: [saleId], references: [id])
-  variant ProductVariant @relation(fields: [variantId], references: [id])
+  sale      Sale           @relation(fields: [saleId], references: [id])
+  inventory Inventory?     @relation(fields: [inventoryId], references: [id])
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
 }
 
 model Payment {
@@ -510,6 +514,18 @@ model Receipt {
   sale         Sale         @relation(fields: [saleId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
   shop         Shop         @relation(fields: [shopId], references: [id])
+}
+
+model ReceiptCounter {
+  organizationId String
+  dateKey        String
+  lastValue      Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, dateKey])
 }
 
 model Notification {

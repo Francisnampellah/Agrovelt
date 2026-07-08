@@ -3,6 +3,32 @@ import { UpdateInventoryRequest, AdjustInventoryRequest } from './types'
 
 type TxClient = Prisma.TransactionClient
 
+type SaleStockTarget = {
+  shopId: string
+  variantId: string
+  inventoryId?: string
+  batchNumber?: string
+  quantity: number
+  saleId: string
+}
+
+type RefundStockTarget = {
+  shopId: string
+  variantId: string
+  inventoryId?: string
+  batchNumber: string
+  quantity: number
+  saleId: string
+}
+
+type ResolvedInventoryRow = {
+  id: string
+  shopId: string
+  variantId: string
+  batchNumber: string
+  quantity: number
+}
+
 export class InventoryService {
   constructor(private prisma: PrismaClient) {}
 
@@ -118,68 +144,174 @@ export class InventoryService {
     })
   }
 
-  async deductSaleStock(
-    data: {
-      shopId: string
-      variantId: string
-      batchNumber: string
-      quantity: number
-      saleId: string
-    },
+  private async resolveSaleInventoryRow(
+    data: Omit<SaleStockTarget, 'quantity' | 'saleId'>,
     tx?: TxClient
-  ): Promise<void> {
+  ): Promise<ResolvedInventoryRow> {
     const db = this.db(tx)
+
+    if (data.inventoryId) {
+      const inventory = await db.inventory.findUnique({
+        where: { id: data.inventoryId },
+        select: {
+          id: true,
+          shopId: true,
+          variantId: true,
+          batchNumber: true,
+          quantity: true
+        }
+      })
+
+      if (!inventory) {
+        throw new Error('inventory_row_not_found')
+      }
+      if (inventory.shopId !== data.shopId) {
+        throw new Error('inventory_row_shop_mismatch')
+      }
+      if (inventory.variantId !== data.variantId) {
+        throw new Error('inventory_row_variant_mismatch')
+      }
+      // inventoryId is source of truth for row selection; batch is optional validation only.
+      if (
+        data.batchNumber !== undefined &&
+        data.batchNumber !== inventory.batchNumber
+      ) {
+        throw new Error('inventory_row_batch_mismatch')
+      }
+
+      return inventory
+    }
+
+    const inventory = await db.inventory.findUnique({
+      where: {
+        shopId_variantId_batchNumber: {
+          shopId: data.shopId,
+          variantId: data.variantId,
+          batchNumber: data.batchNumber ?? 'DEFAULT'
+        }
+      },
+      select: {
+        id: true,
+        shopId: true,
+        variantId: true,
+        batchNumber: true,
+        quantity: true
+      }
+    })
+
+    if (!inventory) {
+      throw new Error(
+        `Insufficient stock for variant ${data.variantId} batch ${data.batchNumber ?? 'DEFAULT'}`
+      )
+    }
+
+    return inventory
+  }
+
+  async deductSaleStock(
+    data: SaleStockTarget,
+    tx?: TxClient
+  ): Promise<{ inventoryId: string; batchNumber: string }> {
+    const db = this.db(tx)
+    const inventory = await this.resolveSaleInventoryRow(data, tx)
 
     const result = await db.inventory.updateMany({
       where: {
+        id: inventory.id,
         shopId: data.shopId,
         variantId: data.variantId,
-        batchNumber: data.batchNumber,
         quantity: { gte: data.quantity }
       },
       data: { quantity: { decrement: data.quantity } }
     })
 
     if (result.count === 0) {
-      throw new Error(
-        `Insufficient stock for variant ${data.variantId} batch ${data.batchNumber}`
-      )
+      const freshRow = await db.inventory.findUnique({
+        where: { id: inventory.id },
+        select: {
+          id: true,
+          shopId: true,
+          variantId: true,
+          batchNumber: true,
+          quantity: true
+        }
+      })
+
+      if (!freshRow) {
+        throw new Error(data.inventoryId ? 'inventory_row_not_found' : 'inventory_insufficient_stock')
+      }
+      if (freshRow.shopId !== data.shopId) {
+        throw new Error('inventory_row_shop_mismatch')
+      }
+      if (freshRow.variantId !== data.variantId) {
+        throw new Error('inventory_row_variant_mismatch')
+      }
+      if (freshRow.quantity < data.quantity) {
+        throw new Error(
+          data.inventoryId
+            ? 'inventory_insufficient_stock'
+            : `Insufficient stock for variant ${data.variantId} batch ${inventory.batchNumber}`
+        )
+      }
+
+      throw new Error('inventory_row_update_conflict')
     }
 
     await db.inventoryTransaction.create({
       data: {
         shopId: data.shopId,
         variantId: data.variantId,
-        batchNumber: data.batchNumber,
+        batchNumber: inventory.batchNumber,
         type: InventoryTxnType.SALE,
         quantity: -data.quantity,
         referenceId: data.saleId
       }
     })
+
+    return {
+      inventoryId: inventory.id,
+      batchNumber: inventory.batchNumber
+    }
   }
 
   async restoreRefundStock(
-    data: {
-      shopId: string
-      variantId: string
-      batchNumber: string
-      quantity: number
-      saleId: string
-    },
+    data: RefundStockTarget,
     tx?: TxClient
   ): Promise<void> {
     const db = this.db(tx)
 
-    await db.inventory.update({
-      where: {
-        shopId_variantId_batchNumber: {
-          shopId: data.shopId,
-          variantId: data.variantId,
-          batchNumber: data.batchNumber
-        }
-      },
-      data: { quantity: { increment: data.quantity } }
-    })
+    if (data.inventoryId) {
+      const inventory = await db.inventory.findUnique({
+        where: { id: data.inventoryId },
+        select: { id: true, shopId: true, variantId: true, batchNumber: true }
+      })
+
+      if (!inventory) {
+        throw new Error('inventory_row_not_found')
+      }
+      if (inventory.shopId !== data.shopId) {
+        throw new Error('inventory_row_shop_mismatch')
+      }
+      if (inventory.variantId !== data.variantId) {
+        throw new Error('inventory_row_variant_mismatch')
+      }
+
+      await db.inventory.update({
+        where: { id: data.inventoryId },
+        data: { quantity: { increment: data.quantity } }
+      })
+    } else {
+      await db.inventory.update({
+        where: {
+          shopId_variantId_batchNumber: {
+            shopId: data.shopId,
+            variantId: data.variantId,
+            batchNumber: data.batchNumber
+          }
+        },
+        data: { quantity: { increment: data.quantity } }
+      })
+    }
 
     await db.inventoryTransaction.create({
       data: {

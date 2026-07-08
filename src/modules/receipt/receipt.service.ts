@@ -2,6 +2,18 @@ import { Prisma, PrismaClient, ReceiptStatus } from '@prisma/client'
 import { CreateReceiptInput, ReceiptListFilters } from './types'
 
 type TxClient = Prisma.TransactionClient
+const MAX_RECEIPT_CREATE_RETRIES = 3
+
+interface ReceiptCounterRow {
+  lastValue: number
+}
+
+interface PrismaKnownRequestErrorLike {
+  code?: string
+  meta?: {
+    target?: unknown
+  }
+}
 
 export class ReceiptService {
   constructor(private prisma: PrismaClient) {}
@@ -16,34 +28,67 @@ export class ReceiptService {
   ): Promise<string> {
     const db = this.db(tx)
     const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
-    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '')
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    const seconds = String(now.getSeconds()).padStart(2, '0')
+    const milliseconds = String(now.getMilliseconds()).padStart(3, '0')
+    const timestampKey = `${year}${month}${day}${hours}${minutes}${seconds}${milliseconds}`
 
-    const count = await db.receipt.count({
-      where: {
-        organizationId,
-        createdAt: { gte: start, lte: end }
-      }
-    })
+    const [counter] = await db.$queryRaw<ReceiptCounterRow[]>`
+      INSERT INTO "ReceiptCounter" ("organizationId", "dateKey", "lastValue", "createdAt", "updatedAt")
+      VALUES (${organizationId}, ${timestampKey}, 1, NOW(), NOW())
+      ON CONFLICT ("organizationId", "dateKey")
+      DO UPDATE SET
+        "lastValue" = "ReceiptCounter"."lastValue" + 1,
+        "updatedAt" = NOW()
+      RETURNING "lastValue"
+    `
 
-    return `RCP-${datePart}-${String(count + 1).padStart(4, '0')}`
+    if (!counter) {
+      throw new Error('Failed to allocate receipt number')
+    }
+
+    return `RCP-${timestampKey}-${String(counter.lastValue).padStart(4, '0')}`
+  }
+
+  private isReceiptNumberUniqueError(error: unknown): boolean {
+    const prismaError = error as PrismaKnownRequestErrorLike
+
+    return (
+      prismaError?.code === 'P2002' &&
+      Array.isArray(prismaError.meta?.target) &&
+      prismaError.meta.target.includes('receiptNumber')
+    )
   }
 
   async createForSale(input: CreateReceiptInput, tx?: TxClient) {
     const db = this.db(tx)
-    const receiptNumber = await this.generateReceiptNumber(input.organizationId, tx)
 
-    return db.receipt.create({
-      data: {
-        receiptNumber,
-        saleId: input.saleId,
-        organizationId: input.organizationId,
-        shopId: input.shopId,
-        issuedBy: input.issuedBy,
-        ...(input.notes !== undefined ? { notes: input.notes } : {})
+    for (let attempt = 1; attempt <= MAX_RECEIPT_CREATE_RETRIES; attempt += 1) {
+      const receiptNumber = await this.generateReceiptNumber(input.organizationId, tx)
+
+      try {
+        return await db.receipt.create({
+          data: {
+            receiptNumber,
+            saleId: input.saleId,
+            organizationId: input.organizationId,
+            shopId: input.shopId,
+            issuedBy: input.issuedBy,
+            ...(input.notes !== undefined ? { notes: input.notes } : {})
+          }
+        })
+      } catch (error) {
+        if (!this.isReceiptNumberUniqueError(error) || attempt === MAX_RECEIPT_CREATE_RETRIES) {
+          throw error
+        }
       }
-    })
+    }
+
+    throw new Error('Failed to create receipt')
   }
 
   async voidForSale(saleId: string, tx?: TxClient) {

@@ -2,7 +2,7 @@ import { Response } from 'express'
 import { body, query, validationResult } from 'express-validator'
 import { AuthenticatedRequest } from '../auth/types'
 import { NotificationService } from '../notifications/notification.service'
-import { SaleService } from './sale.service'
+import { SaleCreationConflictError, SaleService } from './sale.service'
 import { CreateSaleRequest } from './types'
 
 export class SaleController {
@@ -15,10 +15,12 @@ export class SaleController {
     body('shopId').isUUID().withMessage('Valid shop ID is required'),
     body('paymentMethod').isIn(['CASH', 'CARD', 'MOBILE']).withMessage('Invalid payment method'),
     body('items').isArray({ min: 1 }).withMessage('At least one sale item is required'),
+    body('items.*.inventoryId').optional().isUUID().withMessage('inventoryId must be a valid UUID'),
     body('items.*.variantId').isString().notEmpty().withMessage('Valid variant ID is required'),
     body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
     body('items.*.price').optional().isFloat({ min: 0 }),
     body('items.*.batchNumber').optional().isString(),
+    body('items.*.batch').optional().isString(),
     body('discount').optional().isFloat({ min: 0 }),
     body('tax').optional().isFloat({ min: 0 }),
     body('total').optional().isFloat({ min: 0 })
@@ -66,7 +68,8 @@ export class SaleController {
 
       res.status(201).json({ data: sale, receipt: sale.receipt, notification })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      const statusCode = error instanceof SaleCreationConflictError ? error.statusCode : 400
+      res.status(statusCode).json({ error: error.message })
     }
   }
 

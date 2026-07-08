@@ -44,17 +44,27 @@ export function createSaleRoutes(
    *                 type: array
    *                 items:
    *                   type: object
-   *                   required: [variantId, quantity]
-   *                   properties:
-   *                     variantId:
-   *                       type: string
-   *                       format: uuid
-   *                     quantity:
-   *                       type: integer
-   *                     price:
-   *                       type: number
-   *                     batchNumber:
-   *                       type: string
+ *                   required: [variantId, quantity]
+ *                   description: |
+ *                     Preferred: inventoryId depletes the exact inventory row.
+ *                     Legacy: variantId + batchNumber/batch still works (defaults to DEFAULT).
+ *                     Both styles are accepted; inventoryId wins for row selection when provided.
+ *                   properties:
+ *                     inventoryId:
+ *                       type: string
+ *                       format: uuid
+ *                     variantId:
+ *                       type: string
+ *                       format: uuid
+ *                     quantity:
+ *                       type: integer
+ *                     price:
+ *                       type: number
+ *                     batchNumber:
+ *                       type: string
+ *                     batch:
+ *                       type: string
+ *                       description: Legacy alias for batchNumber
    *     responses:
    *       201:
    *         description: Sale created
