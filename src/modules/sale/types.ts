@@ -1,10 +1,14 @@
 import { PaymentMethod } from '@prisma/client'
 
 export interface CreateSaleItemRequest {
+  inventoryId?: string
   variantId: string
   quantity: number
   price?: number
+  /** Preferred batch field */
   batchNumber?: string
+  /** Legacy/mobile alias accepted for batchNumber */
+  batch?: string
 }
 
 export interface CreateSaleRequest {

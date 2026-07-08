@@ -55,10 +55,11 @@ export class SaleService {
         return await this.prisma.$transaction(async (tx) => {
           let subtotal = 0
           const resolvedItems: Array<{
+            inventoryId?: string
             variantId: string
             quantity: number
             price: number
-            batchNumber: string
+            batchNumber?: string
           }> = []
 
           for (const item of data.items) {
@@ -69,13 +70,21 @@ export class SaleService {
               await this.pricingService.validateSalePrice(data.shopId, item.variantId, price)
             }
 
-            const batchNumber = item.batchNumber ?? 'DEFAULT'
+            // Preferred: inventoryId targets the exact stock row.
+            // Legacy: variantId + batch/batchNumber (defaults to DEFAULT).
+            // Accept either style, including payloads that send inventoryId together with variantId/batch.
+            const providedBatch = item.batchNumber ?? item.batch
             subtotal += item.quantity * price
             resolvedItems.push({
+              ...(item.inventoryId ? { inventoryId: item.inventoryId } : {}),
               variantId: item.variantId,
               quantity: item.quantity,
               price,
-              batchNumber
+              ...(providedBatch !== undefined
+                ? { batchNumber: providedBatch }
+                : item.inventoryId
+                  ? {}
+                  : { batchNumber: 'DEFAULT' })
             })
           }
 
@@ -96,23 +105,25 @@ export class SaleService {
           })
 
           for (const item of resolvedItems) {
+            const depletedStock = await this.inventoryService.deductSaleStock({
+              shopId: data.shopId,
+              ...(item.inventoryId ? { inventoryId: item.inventoryId } : {}),
+              variantId: item.variantId,
+              ...(item.batchNumber !== undefined ? { batchNumber: item.batchNumber } : {}),
+              quantity: item.quantity,
+              saleId: sale.id
+            }, tx)
+
             await tx.saleItem.create({
               data: {
                 saleId: sale.id,
+                inventoryId: depletedStock.inventoryId,
                 variantId: item.variantId,
-                batchNumber: item.batchNumber,
+                batchNumber: depletedStock.batchNumber,
                 quantity: item.quantity,
                 price: item.price
               }
             })
-
-            await this.inventoryService.deductSaleStock({
-              shopId: data.shopId,
-              variantId: item.variantId,
-              batchNumber: item.batchNumber,
-              quantity: item.quantity,
-              saleId: sale.id
-            }, tx)
           }
 
           await tx.payment.create({
@@ -240,6 +251,7 @@ export class SaleService {
       for (const item of sale.items) {
         await this.inventoryService.restoreRefundStock({
           shopId: sale.shopId,
+          ...(item.inventoryId ? { inventoryId: item.inventoryId } : {}),
           variantId: item.variantId,
           batchNumber: item.batchNumber ?? 'DEFAULT',
           quantity: item.quantity,

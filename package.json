@@ -12,7 +12,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "seed:firebase-products": "ts-node scripts/seed-products-from-firebase.ts",
     "seed:firebase-products:dry-run": "ts-node scripts/seed-products-from-firebase.ts --dry-run",
-    "test": "node --require ts-node/register --test src/modules/receipt/receipt.service.test.ts"
+    "test": "node --require ts-node/register --test \"src/**/*.test.ts\""
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

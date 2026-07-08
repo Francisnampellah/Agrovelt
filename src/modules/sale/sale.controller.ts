@@ -15,10 +15,12 @@ export class SaleController {
     body('shopId').isUUID().withMessage('Valid shop ID is required'),
     body('paymentMethod').isIn(['CASH', 'CARD', 'MOBILE']).withMessage('Invalid payment method'),
     body('items').isArray({ min: 1 }).withMessage('At least one sale item is required'),
+    body('items.*.inventoryId').optional().isUUID().withMessage('inventoryId must be a valid UUID'),
     body('items.*.variantId').isString().notEmpty().withMessage('Valid variant ID is required'),
     body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
     body('items.*.price').optional().isFloat({ min: 0 }),
     body('items.*.batchNumber').optional().isString(),
+    body('items.*.batch').optional().isString(),
     body('discount').optional().isFloat({ min: 0 }),
     body('tax').optional().isFloat({ min: 0 }),
     body('total').optional().isFloat({ min: 0 })

@@ -262,6 +262,7 @@ model Inventory {
 
   shop    Shop           @relation(fields: [shopId], references: [id])
   variant ProductVariant @relation(fields: [variantId], references: [id])
+  saleItems SaleItem[]
 
   // Stock is uniquely tracked per shop, variant, AND batch
   @@unique([shopId, variantId, batchNumber])
@@ -446,13 +447,15 @@ model Sale {
 model SaleItem {
   id          String  @id @default(uuid())
   saleId      String
+  inventoryId String?
   variantId   String
   batchNumber String? // Which batch was sold (for FEFO auditing)
   quantity    Int
   price       Float
 
-  sale    Sale           @relation(fields: [saleId], references: [id])
-  variant ProductVariant @relation(fields: [variantId], references: [id])
+  sale      Sale           @relation(fields: [saleId], references: [id])
+  inventory Inventory?     @relation(fields: [inventoryId], references: [id])
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
 }
 
 model Payment {

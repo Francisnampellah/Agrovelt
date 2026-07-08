@@ -24,11 +24,17 @@
  *                 items:
  *                   type: object
  *                   required: [variantId, quantity]
+ *                   description: |
+ *                     Preferred: include inventoryId to deplete an exact stock row.
+ *                     Legacy: resolve stock with variantId + batchNumber/batch (defaults to DEFAULT).
+ *                     Both styles are accepted. When inventoryId is present it is the source of truth.
  *                   properties:
+ *                     inventoryId: { type: string, format: uuid }
  *                     variantId: { type: string, format: uuid }
  *                     quantity: { type: integer, minimum: 1 }
  *                     price: { type: number, minimum: 0 }
  *                     batchNumber: { type: string }
+ *                     batch: { type: string, description: 'Legacy alias for batchNumber' }
  *     responses:
  *       201:
  *         description: Sale created
