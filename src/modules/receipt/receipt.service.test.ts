@@ -22,9 +22,9 @@ function createConcurrentReceiptDb() {
     receiptNumbers,
     createTx() {
       return {
-        async $queryRaw(_query: TemplateStringsArray, organizationId: string, dateKey: string) {
+        async $queryRaw(_query: TemplateStringsArray, organizationId: string, timestampKey: string) {
           await Promise.resolve()
-          const counterKey = `${organizationId}:${dateKey}`
+          const counterKey = `${organizationId}:${timestampKey}`
           const nextValue = (counters.get(counterKey) ?? 0) + 1
           counters.set(counterKey, nextValue)
           return [{ lastValue: nextValue }]
@@ -66,6 +66,9 @@ test('createForSale keeps receipt numbers unique under concurrent requests', asy
   assert.equal(receipts.length, 25)
   assert.equal(new Set(receipts.map(receipt => receipt.receiptNumber)).size, 25)
   assert.equal(db.receiptNumbers.size, 25)
+  for (const receipt of receipts) {
+    assert.match(receipt.receiptNumber, /^RCP-\d{17}-\d{4}$/)
+  }
 })
 
 test('createForSale retries automatically when a generated receipt number collides', async () => {
@@ -101,5 +104,5 @@ test('createForSale retries automatically when a generated receipt number collid
   )
 
   assert.equal(createAttempts, 2)
-  assert.match(receipt.receiptNumber, /^RCP-\d{8}-0002$/)
+  assert.match(receipt.receiptNumber, /^RCP-\d{17}-0002$/)
 })
