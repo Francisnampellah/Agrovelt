@@ -21,6 +21,7 @@ import { createExpenseRoutes } from './routes/expenses'
 import { createPurchaseRoutes } from './routes/purchases'
 import { createReceiptRoutes } from './routes/receipts'
 import { createNotificationRoutes } from './routes/notifications'
+import { createCashFlowRoutes } from './routes/cashflow'
 import { createNotificationModule } from './modules/notifications'
 import { createInventoryModule } from './modules/inventory'
 import { createShopModule } from './modules/shops'
@@ -111,6 +112,7 @@ app.use('/api', createExpenseRoutes(prisma, activityModules.notificationService)
 app.use('/api', createPurchaseRoutes(prisma, activityModules.notificationService))
 app.use('/api', createReceiptRoutes(prisma))
 app.use('/api', createNotificationRoutes(prisma))
+app.use('/api', createCashFlowRoutes(prisma))
 
 // Start server
 app.listen(PORT, () => {
