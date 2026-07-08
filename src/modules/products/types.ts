@@ -5,7 +5,7 @@ export interface CreateCategoryRequest {
 export interface CreateProductRequest {
   name: string
   description?: string
-  categoryId?: string
+  categoryId?: string | null
   unit?: string
   dosageInfo?: string
   manufacturer?: string
@@ -15,10 +15,23 @@ export interface CreateProductRequest {
   imageMimeType?: string
 }
 
+export type UpdateProductRequest = Partial<CreateProductRequest>
+
 export interface CreateProductVariantRequest {
   productId: string
   name: string
   sku: string
+  defaultCostPrice?: number | null
+  defaultSellingPrice?: number | null
+  markupPercent?: number | null
+}
+
+export interface UpdateProductVariantRequest {
+  name?: string
+  sku?: string
+  defaultCostPrice?: number | null
+  defaultSellingPrice?: number | null
+  markupPercent?: number | null
 }
 
 export interface ProductResponse {
@@ -38,6 +51,9 @@ export interface ProductWithVariantsResponse extends ProductResponse {
     id: string
     name: string
     sku: string
+    defaultCostPrice: number | null
+    defaultSellingPrice: number | null
+    markupPercent: number | null
     createdAt: Date
   }[]
 }

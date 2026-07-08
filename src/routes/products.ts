@@ -273,7 +273,21 @@ router.get('/products/:id', authMiddleware.authenticate, productController.getPr
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/products', authMiddleware.authenticate, productController.productValidation, productController.createProduct)
+router.post(
+  '/products',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.productValidation,
+  productController.createProduct
+)
+
+router.patch(
+  '/products/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.productUpdateValidation,
+  productController.updateProduct
+)
 
 /**
  * @swagger
@@ -365,7 +379,12 @@ router.post('/products/:id/image', authMiddleware.authenticate, uploadProductIma
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete('/products/:id', authMiddleware.authenticate, productController.deleteProduct)
+router.delete(
+  '/products/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.deleteProduct
+)
 
 /**
  * @swagger
@@ -399,6 +418,18 @@ router.delete('/products/:id', authMiddleware.authenticate, productController.de
  *                 minLength: 1
  *                 description: Stock Keeping Unit - must be unique globally
  *                 example: SKU-001-1KG
+ *               defaultCostPrice:
+ *                 type: number
+ *                 nullable: true
+ *                 example: 9000
+ *               defaultSellingPrice:
+ *                 type: number
+ *                 nullable: true
+ *                 example: 12000
+ *               markupPercent:
+ *                 type: number
+ *                 nullable: true
+ *                 example: 20
  *     responses:
  *       201:
  *         description: Variant created successfully
@@ -414,6 +445,9 @@ router.delete('/products/:id', authMiddleware.authenticate, productController.de
  *                     productId: { type: string, format: uuid }
  *                     name: { type: string }
  *                     sku: { type: string }
+ *                     defaultCostPrice: { type: number, nullable: true }
+ *                     defaultSellingPrice: { type: number, nullable: true }
+ *                     markupPercent: { type: number, nullable: true }
  *                     createdAt: { type: string, format: date-time }
  *       400:
  *         description: Invalid input or SKU already exists
@@ -422,7 +456,28 @@ router.delete('/products/:id', authMiddleware.authenticate, productController.de
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/variants', authMiddleware.authenticate, productController.variantValidation, productController.createVariant)
+router.post(
+  '/variants',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.variantValidation,
+  productController.createVariant
+)
+
+router.patch(
+  '/variants/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.variantUpdateValidation,
+  productController.updateVariant
+)
+
+router.delete(
+  '/variants/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.deleteVariant
+)
 
 /**
  * @swagger
