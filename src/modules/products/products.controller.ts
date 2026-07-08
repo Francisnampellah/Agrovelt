@@ -21,17 +21,52 @@ export class ProductController {
   productValidation = [
     body('name').trim().notEmpty().withMessage('Product name is required'),
     body('description').optional().trim(),
-    body('categoryId').optional().isUUID().withMessage('Invalid category ID'),
+    body('categoryId').optional({ nullable: true }).isUUID().withMessage('Invalid category ID'),
     body('unit').optional().isString(),
     body('dosageInfo').optional().isString(),
     body('manufacturer').optional().isString(),
     body('isRestricted').optional().isBoolean()
   ]
 
+  productUpdateValidation = [
+    body('name').optional().trim().notEmpty().withMessage('Product name cannot be empty'),
+    body('description').optional({ nullable: true }).trim(),
+    body('categoryId').optional({ nullable: true }).isUUID().withMessage('Invalid category ID'),
+    body('unit').optional({ nullable: true }).isString(),
+    body('dosageInfo').optional({ nullable: true }).isString(),
+    body('manufacturer').optional({ nullable: true }).isString(),
+    body('isRestricted').optional().isBoolean()
+  ]
+
   variantValidation = [
     body('productId').isString().notEmpty().withMessage('Valid product ID is required'),
     body('name').trim().notEmpty().withMessage('Variant name is required'),
-    body('sku').trim().notEmpty().withMessage('SKU is required')
+    body('sku').trim().notEmpty().withMessage('SKU is required'),
+    body('defaultCostPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default cost price must be 0 or greater').toFloat(),
+    body('defaultSellingPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default selling price must be 0 or greater').toFloat()
+      .custom((value, { req }) => {
+        const costPrice = req.body.defaultCostPrice
+        if (value != null && costPrice != null && Number(value) < Number(costPrice)) {
+          throw new Error('Default selling price cannot be less than default cost price')
+        }
+        return true
+      }),
+    body('markupPercent').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Markup percent must be 0 or greater').toFloat()
+  ]
+
+  variantUpdateValidation = [
+    body('name').optional().trim().notEmpty().withMessage('Variant name cannot be empty'),
+    body('sku').optional().trim().notEmpty().withMessage('SKU cannot be empty'),
+    body('defaultCostPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default cost price must be 0 or greater').toFloat(),
+    body('defaultSellingPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default selling price must be 0 or greater').toFloat()
+      .custom((value, { req }) => {
+        const costPrice = req.body.defaultCostPrice
+        if (value != null && costPrice != null && Number(value) < Number(costPrice)) {
+          throw new Error('Default selling price cannot be less than default cost price')
+        }
+        return true
+      }),
+    body('markupPercent').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Markup percent must be 0 or greater').toFloat()
   ]
 
   createCategory = async (req: Request, res: Response) => {
@@ -84,6 +119,19 @@ export class ProductController {
         await fs.unlink((req as any).file.path).catch(() => {})
       }
       res.status(400).json({ error: error.message })
+    }
+  }
+
+  updateProduct = async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      const product = await this.productService.updateProduct(String(req.params.id), req.body)
+      res.json({ data: product })
+    } catch (error: any) {
+      const status = error.message === 'Product not found' ? 404 : 400
+      res.status(status).json({ error: error.message })
     }
   }
 
@@ -152,6 +200,29 @@ export class ProductController {
       res.status(201).json({ data: variant })
     } catch (error: any) {
       res.status(400).json({ error: error.message })
+    }
+  }
+
+  updateVariant = async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      const variant = await this.productService.updateVariant(String(req.params.id), req.body)
+      res.json({ data: variant })
+    } catch (error: any) {
+      const status = error.message === 'Variant not found' ? 404 : 400
+      res.status(status).json({ error: error.message })
+    }
+  }
+
+  deleteVariant = async (req: Request, res: Response) => {
+    try {
+      await this.productService.deleteVariant(String(req.params.id))
+      res.json({ message: 'Variant deleted successfully' })
+    } catch (error: any) {
+      const status = error.message === 'Variant not found' ? 404 : 400
+      res.status(status).json({ error: error.message })
     }
   }
 
