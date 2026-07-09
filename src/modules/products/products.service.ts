@@ -122,21 +122,46 @@ export class ProductService {
     })
   }
 
+  // Deletes a product and every one of its variants together. ProductVariant
+  // has ON DELETE RESTRICT against Product, so a plain product delete would
+  // simply fail with a foreign-key error as soon as any variant exists —
+  // this checks every variant for real usage first (same checks as
+  // deleteVariant, minus its "last variant" rule, which doesn't apply here
+  // since we're intentionally removing all of them together) and refuses
+  // the whole operation — nothing is deleted — if any variant is in use.
   async deleteProduct(id: string) {
     const product = await this.prisma.product.findUnique({
-      where: { id }
+      where: { id },
+      include: { variants: { select: { id: true, name: true, sku: true } } }
     })
 
     if (!product) throw new Error('Product not found')
 
-    // Delete image file if exists
+    const blockedVariants: string[] = []
+    for (const variant of product.variants) {
+      const usageCount = await this.getVariantUsageCount(variant.id)
+      if (usageCount > 0) {
+        blockedVariants.push(`${variant.name} (SKU: ${variant.sku})`)
+      }
+    }
+
+    if (blockedVariants.length > 0) {
+      throw new Error(
+        `Cannot delete product: variant(s) already used by inventory, pricing, purchases, sales, or transfers — ${blockedVariants.join(', ')}`
+      )
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.productVariant.deleteMany({ where: { productId: id } }),
+      this.prisma.product.delete({ where: { id } })
+    ])
+
+    // Delete image file only after the database delete succeeds
     if (product.imagePath) {
       deleteFile(product.imagePath)
     }
 
-    return this.prisma.product.delete({
-      where: { id }
-    })
+    return product
   }
 
   // Variant Methods
@@ -193,6 +218,39 @@ export class ProductService {
     })
   }
 
+  // Shared by deleteVariant and deleteProduct's cascade — counts every
+  // place a variant is referenced across inventory, pricing, purchases,
+  // sales, and transfers.
+  private async getVariantUsageCount(variantId: string): Promise<number> {
+    const [
+      inventoryCount,
+      transactionCount,
+      purchaseCount,
+      saleCount,
+      transferCount,
+      shopPriceCount,
+      priceHistoryCount
+    ] = await Promise.all([
+      this.prisma.inventory.count({ where: { variantId } }),
+      this.prisma.inventoryTransaction.count({ where: { variantId } }),
+      this.prisma.purchaseItem.count({ where: { variantId } }),
+      this.prisma.saleItem.count({ where: { variantId } }),
+      this.prisma.inventoryTransferItem.count({ where: { variantId } }),
+      this.prisma.shopVariantPrice.count({ where: { variantId } }),
+      this.prisma.priceHistory.count({ where: { variantId } })
+    ])
+
+    return (
+      inventoryCount +
+      transactionCount +
+      purchaseCount +
+      saleCount +
+      transferCount +
+      shopPriceCount +
+      priceHistoryCount
+    )
+  }
+
   async deleteVariant(id: string) {
     const variant = await this.prisma.productVariant.findUnique({
       where: { id },
@@ -207,32 +265,7 @@ export class ProductService {
       throw new Error('Cannot delete the last variant for a product')
     }
 
-    const [
-      inventoryCount,
-      transactionCount,
-      purchaseCount,
-      saleCount,
-      transferCount,
-      shopPriceCount,
-      priceHistoryCount
-    ] = await Promise.all([
-      this.prisma.inventory.count({ where: { variantId: id } }),
-      this.prisma.inventoryTransaction.count({ where: { variantId: id } }),
-      this.prisma.purchaseItem.count({ where: { variantId: id } }),
-      this.prisma.saleItem.count({ where: { variantId: id } }),
-      this.prisma.inventoryTransferItem.count({ where: { variantId: id } }),
-      this.prisma.shopVariantPrice.count({ where: { variantId: id } }),
-      this.prisma.priceHistory.count({ where: { variantId: id } })
-    ])
-
-    const usageCount =
-      inventoryCount +
-      transactionCount +
-      purchaseCount +
-      saleCount +
-      transferCount +
-      shopPriceCount +
-      priceHistoryCount
+    const usageCount = await this.getVariantUsageCount(id)
 
     if (usageCount > 0) {
       throw new Error('Cannot delete a variant that is already used by inventory, pricing, purchases, sales, or transfers')
