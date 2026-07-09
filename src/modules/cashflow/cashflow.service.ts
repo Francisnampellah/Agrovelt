@@ -28,12 +28,21 @@ export class CashFlowService {
     return this.summarize(entries)
   }
 
-  // Category-level rollup across every shop in the organization — distinct
-  // from getSummary's IN/OUT split, since the Finance hub needs revenue vs
+  // Category-level rollup across every shop in the organization (or a
+  // specific subset of shops, for shop-filtered reports) — distinct from
+  // getSummary's IN/OUT split, since the Finance hub needs revenue vs
   // expenses vs purchases vs refunds broken out individually.
-  async getFinanceSummaryByOrganization(organizationId: string, from: Date, to: Date) {
+  async getFinanceSummaryByOrganization(
+    organizationId: string,
+    from: Date,
+    to: Date,
+    shopIds?: string[]
+  ) {
     const entries = await this.prisma.cashFlowEntry.findMany({
-      where: { shop: { organizationId }, createdAt: { gte: from, lte: to } }
+      where: {
+        shop: { organizationId, ...(shopIds?.length ? { id: { in: shopIds } } : {}) },
+        createdAt: { gte: from, lte: to }
+      }
     })
 
     const sumBy = (category: CashFlowCategory) =>
@@ -73,15 +82,27 @@ export class CashFlowService {
     return this.queryEntries({ shopId }, filters)
   }
 
-  // Org-wide activity feed for the Finance hub — spans every shop, so each
-  // entry includes its shop so the UI can show which shop it came from.
+  // Org-wide activity feed for the Finance hub — spans every shop (or a
+  // specific subset, for shop-filtered reports), so each entry includes
+  // its shop so the UI can show which shop it came from.
   async getEntriesByOrganization(organizationId: string, filters: {
+    from?: Date
+    to?: Date
+    shopIds?: string[]
     cursor?: string
     take?: number
   } = {}) {
-    const { cursor, take = 50 } = filters
+    const { from, to, shopIds, cursor, take = 50 } = filters
     return this.prisma.cashFlowEntry.findMany({
-      where: { shop: { organizationId } },
+      where: {
+        shop: { organizationId, ...(shopIds?.length ? { id: { in: shopIds } } : {}) },
+        ...(from || to ? {
+          createdAt: {
+            ...(from && { gte: from }),
+            ...(to && { lte: to })
+          }
+        } : {})
+      },
       take,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
       orderBy: { createdAt: 'desc' },

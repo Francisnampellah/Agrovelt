@@ -124,7 +124,32 @@ export class OrganizationController {
 
   financeQueryValidation = [
     query('from').optional().isISO8601().withMessage('Valid from date is required'),
-    query('to').optional().isISO8601().withMessage('Valid to date is required')
+    query('to').optional().isISO8601().withMessage('Valid to date is required'),
+    query('shopIds').optional().isString(),
+    // Only enforced when the caller supplies an explicit range (report
+    // generation) — the Finance hub's default all-time view calls this
+    // with no from/to and must stay unbounded.
+    query('to').custom((value, { req }) => {
+      if (!req.query?.from || !value) return true
+
+      const from = new Date(String(req.query.from))
+      const to = new Date(String(value))
+      const spanMs = to.getTime() - from.getTime()
+      const oneDayMs = 24 * 60 * 60 * 1000
+      const threeMonthsAgo = new Date()
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+
+      if (spanMs < oneDayMs) {
+        throw new Error('Report range must span at least 24 hours')
+      }
+      if (from < threeMonthsAgo) {
+        throw new Error('Report range cannot start more than 3 months ago')
+      }
+      if (to.getTime() > Date.now()) {
+        throw new Error('Report range cannot extend into the future')
+      }
+      return true
+    })
   ]
 
   createOrgUserValidation = [
@@ -158,6 +183,12 @@ export class OrganizationController {
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(0)
     const to = req.query.to ? new Date(String(req.query.to)) : new Date()
     return { from, to }
+  }
+
+  private parseShopIds(req: AuthenticatedRequest): string[] | undefined {
+    const raw = req.query.shopIds
+    if (!raw) return undefined
+    return String(raw).split(',').map(id => id.trim()).filter(Boolean)
   }
 
   getSales = async (req: AuthenticatedRequest, res: Response) => {
@@ -317,8 +348,11 @@ export class OrganizationController {
       await this.assertOrgAccess(req, organizationId)
 
       const { from, to } = this.parseDateRange(req)
+      const shopIds = this.parseShopIds(req)
       const [cashSummary, stockSummary] = await Promise.all([
-        this.cashFlowService.getFinanceSummaryByOrganization(organizationId, from, to),
+        this.cashFlowService.getFinanceSummaryByOrganization(organizationId, from, to, shopIds),
+        // Stock on hand is a live snapshot, not a historical figure, so it
+        // isn't scoped to the date range — only to the shop selection.
         this.inventoryService.getStockSummaryByOrganization(organizationId)
       ])
 
@@ -344,7 +378,14 @@ export class OrganizationController {
       await this.assertOrgAccess(req, organizationId)
 
       const take = req.query.take ? Number(req.query.take) : 20
-      const activity = await this.cashFlowService.getEntriesByOrganization(organizationId, { take })
+      const { from, to } = this.parseDateRange(req)
+      const shopIds = this.parseShopIds(req)
+      const activity = await this.cashFlowService.getEntriesByOrganization(organizationId, {
+        ...(req.query.from ? { from } : {}),
+        ...(req.query.to ? { to } : {}),
+        ...(shopIds ? { shopIds } : {}),
+        take
+      })
       res.json({ data: activity })
     } catch (error: any) {
       const status = error.status ?? this.orgErrorStatus(error.message)
