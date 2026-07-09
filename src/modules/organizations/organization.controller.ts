@@ -145,7 +145,13 @@ export class OrganizationController {
       if (from < threeMonthsAgo) {
         throw new Error('Report range cannot start more than 3 months ago')
       }
-      if (to.getTime() > Date.now()) {
+      // Allow a day of slack past "now": the frontend defaults "to" to
+      // today and sends end-of-day (23:59:59) with no timezone designator,
+      // which JS parses as the caller's local time — so "today" in a UTC+3
+      // browser (or ahead of the server's clock at all) legitimately lands
+      // a few hours past the server's Date.now(). Without this, picking
+      // "today" as the end date — the natural default — always fails.
+      if (to.getTime() > Date.now() + oneDayMs) {
         throw new Error('Report range cannot extend into the future')
       }
       return true
