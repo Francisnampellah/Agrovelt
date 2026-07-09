@@ -276,7 +276,6 @@ router.get('/products/:id', authMiddleware.authenticate, productController.getPr
 router.post(
   '/products',
   authMiddleware.authenticate,
-  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
   productController.productValidation,
   productController.createProduct
 )
@@ -515,7 +514,6 @@ router.delete(
 router.post(
   '/variants',
   authMiddleware.authenticate,
-  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
   productController.variantValidation,
   productController.createVariant
 )
