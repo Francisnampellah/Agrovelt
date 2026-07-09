@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import * as dotenv from 'dotenv'
 import { PrismaClient, Role } from '@prisma/client'
 import { seedCatalog } from './catalog-seed'
+import { seedMnyamaShopCategories } from './mnyama-categories-seed'
 import { seedProductsFromFirebase } from '../src/modules/products/firebase-catalog-seed.service'
 
 dotenv.config()
@@ -77,7 +78,18 @@ async function main() {
 
   console.log(`Super Admin user ready: ${superAdmin1.email}`)
 
-  await seedCatalog(prisma)
+  // Real Mnyama Shop categories — always seeded (cheap, idempotent, and
+  // the Firestore catalog sync below depends on these existing by name).
+  // Distinct from the demo catalog below, which is unrelated sample data.
+  await seedMnyamaShopCategories(prisma)
+
+  if (process.env.SEED_BUILTIN_CATALOG === 'true') {
+    await seedCatalog(prisma)
+  } else {
+    console.log(
+      'Skipping built-in demo catalog seed. Set SEED_BUILTIN_CATALOG=true to import demo products.'
+    )
+  }
 
   if (process.env.SEED_FIREBASE_PRODUCTS === 'true') {
     try {
