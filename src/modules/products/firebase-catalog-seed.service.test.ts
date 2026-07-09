@@ -88,6 +88,12 @@ test('mapMnyamaShopProduct syncs every variant in the array, not just the defaul
   assert.equal(mapped!.categoryName, 'Animal Vaccine')
 })
 
+test('mapMnyamaShopProduct uses description_text, not description_html', () => {
+  const mapped = mapMnyamaShopProduct(NEW_STRUCTURE_DOC)
+  assert.ok(mapped)
+  assert.equal(mapped!.description, 'random desc')
+})
+
 test('mapMnyamaShopProduct returns null when variants[] is missing or empty, even with a valid link', () => {
   const noVariants = mapMnyamaShopProduct({
     id: 'doc-1',
