@@ -1,6 +1,6 @@
 /**
  * @swagger
- * /api/products/categories:
+ * /api/categories:
  *   post:
  *     tags: [Categories]
  *     summary: Create a new shared category
