@@ -192,7 +192,8 @@ export class SaleService {
       where: { shopId },
       include: {
         items: { include: { variant: { include: { product: true } } } },
-        payments: true
+        payments: true,
+        receipt: { select: { id: true, receiptNumber: true, status: true } }
       },
       orderBy: { createdAt: 'desc' }
     })
