@@ -89,30 +89,6 @@
  *         description: Product details
  *       404:
  *         description: Product not found
- * 
- * /api/products/variants:
- *   post:
- *     tags: [Products]
- *     summary: Create a product variant
- *     security: [{ bearerAuth: [] }]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [productId, name, sku]
- *             properties:
- *               productId:
- *                 type: string
- *                 format: uuid
- *               name:
- *                 type: string
- *               sku:
- *                 type: string
- *     responses:
- *       201:
- *         description: Variant created
  *
  * /api/products/bulk/import:
  *   post:

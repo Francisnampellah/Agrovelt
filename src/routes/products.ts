@@ -281,6 +281,51 @@ router.post(
   productController.createProduct
 )
 
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   patch:
+ *     summary: Update a product
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               description: { type: string, nullable: true }
+ *               categoryId: { type: string, format: uuid, nullable: true }
+ *               unit: { type: string, nullable: true }
+ *               dosageInfo: { type: string, nullable: true }
+ *               manufacturer: { type: string, nullable: true }
+ *               isRestricted: { type: boolean }
+ *     responses:
+ *       200:
+ *         description: Product updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/Product'
+ *       400:
+ *         description: Invalid input or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Product not found
+ */
 router.patch(
   '/products/:id',
   authMiddleware.authenticate,
@@ -464,6 +509,86 @@ router.post(
   productController.createVariant
 )
 
+/**
+ * @swagger
+ * /api/variants/{id}:
+ *   patch:
+ *     summary: Update a product variant
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               sku:
+ *                 type: string
+ *                 description: Stock Keeping Unit - must be unique globally
+ *               defaultCostPrice: { type: number, nullable: true }
+ *               defaultSellingPrice:
+ *                 type: number
+ *                 nullable: true
+ *                 description: Must not be less than defaultCostPrice
+ *               markupPercent: { type: number, nullable: true }
+ *     responses:
+ *       200:
+ *         description: Variant updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/ProductVariant'
+ *       400:
+ *         description: Invalid input, SKU already exists, or selling price below cost price
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Variant not found
+ *
+ *   delete:
+ *     summary: Delete a product variant
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Blocked if this is the product's last remaining variant, or if the
+ *       variant is referenced by inventory, purchases, sales, transfers, or
+ *       price history.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Variant deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: Variant deleted successfully }
+ *       400:
+ *         description: Cannot delete the last variant, or a variant already in use
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Variant not found
+ */
 router.patch(
   '/variants/:id',
   authMiddleware.authenticate,
