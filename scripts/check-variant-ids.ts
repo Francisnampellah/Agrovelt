@@ -16,7 +16,7 @@ async function main() {
     const catalog = parseAgrovetCatalog(doc.data)
     if (!catalog) continue
 
-    const expectedVariantId = catalog.variantId
+    const expectedVariantId = catalog.defaultVariantId
     const byId = await prisma.productVariant.findUnique({
       where: { id: expectedVariantId },
       select: { id: true, sku: true }
@@ -27,7 +27,7 @@ async function main() {
       continue
     }
 
-    const sku = catalog.sku ?? `MNYAMA-${doc.id}`
+    const sku = `MNYAMA-${doc.id}`
     const bySku = await prisma.productVariant.findUnique({
       where: { sku },
       select: { id: true, sku: true }
@@ -55,18 +55,18 @@ async function main() {
   if (sample) {
     const catalog = parseAgrovetCatalog(sample.data)!
     const variant = await prisma.productVariant.findUnique({
-      where: { id: catalog.variantId },
+      where: { id: catalog.defaultVariantId },
       include: { product: { select: { id: true, name: true } } }
     })
     const firestoreProductId = (sample.data.agrovet_catalog as Record<string, unknown> | undefined)?.product_id
     console.log('Sample mapping:', JSON.stringify({
       firestoreDocId: sample.id,
-      firestoreAgrovetCatalogVariantId: catalog.variantId,
+      firestoreAgrovetCatalogVariantId: catalog.defaultVariantId,
       firestoreAgrovetCatalogProductId: firestoreProductId,
       postgresProductId: variant?.product?.id,
       postgresVariantId: variant?.id,
       postgresSku: variant?.sku,
-      variantIdMatchesFirestore: variant?.id === catalog.variantId
+      variantIdMatchesFirestore: variant?.id === catalog.defaultVariantId
     }, null, 2))
   }
 

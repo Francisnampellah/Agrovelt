@@ -23,16 +23,25 @@ export type FirebaseCatalogSeedResult = {
 
 /**
  * Linked IDs on Firestore `products/{id}.agrovet_catalog`.
- * `productId`  → Postgres Product.id (when present)
- * `variantId`  → Postgres ProductVariant.id (required)
+ * `productId`        -> Postgres Product.id (when present)
+ * `defaultVariantId` -> Postgres ProductVariant.id for the product's
+ *                       primary/default variant (required — a product with
+ *                       no variants was never actually synced to Agrovet)
  */
 export type AgrovetCatalogLink = {
   categoryId?: string
   productId?: string
-  variantId: string
-  sku?: string
+  defaultVariantId: string
   syncStatus?: string
   syncedAt?: string
+}
+
+export type MnyamaShopFirebaseVariant = {
+  variantId: string
+  sku: string
+  name: string
+  defaultSellingPrice: number
+  defaultCostPrice: number
 }
 
 export type MnyamaShopFirebaseProduct = {
@@ -42,14 +51,10 @@ export type MnyamaShopFirebaseProduct = {
   description: string
   categoryName?: string
   imageUrl?: string
-  variant: {
-    sku: string
-    name: string
-    defaultSellingPrice: number
-    defaultCostPrice: number
-    stockQuantity: number
-    isActive: boolean
-  }
+  // Every variant on the Firestore doc, not just the default one — a
+  // product can have several (e.g. "500ml" and "1L"), and all of them
+  // need to exist in Postgres, not just the one agrovet_catalog points at.
+  variants: MnyamaShopFirebaseVariant[]
 }
 
 type ProductDoc = MnyamaShopFirestoreDoc
@@ -72,11 +77,6 @@ function asNumber(value: unknown): number | undefined {
   return undefined
 }
 
-function asBoolean(value: unknown, fallback = false): boolean {
-  if (typeof value === 'boolean') return value
-  return fallback
-}
-
 function isUuid(value: string): boolean {
   return UUID_RE.test(value)
 }
@@ -90,24 +90,16 @@ function firstImageUrl(images: unknown): string | undefined {
   return undefined
 }
 
-function sanitizeSkuPart(value: string): string {
-  return value.replace(/[^A-Za-z0-9_-]/g, '_').toUpperCase()
-}
-
-function fallbackVariantSku(firebaseDocId: string): string {
-  return `MSHOP-${sanitizeSkuPart(firebaseDocId)}-DEFAULT`
-}
-
 export function parseAgrovetCatalog(data: Record<string, unknown>): AgrovetCatalogLink | null {
   const raw = data.agrovet_catalog
   if (!raw || typeof raw !== 'object') return null
 
   const catalog = raw as Record<string, unknown>
-  const variantId = asString(catalog.variant_id)
+  const defaultVariantId = asString(catalog.default_variant_id)
 
-  if (!variantId || !isUuid(variantId)) return null
+  if (!defaultVariantId || !isUuid(defaultVariantId)) return null
 
-  const link: AgrovetCatalogLink = { variantId }
+  const link: AgrovetCatalogLink = { defaultVariantId }
 
   const productId = asString(catalog.product_id)
   if (productId && isUuid(productId)) {
@@ -119,9 +111,6 @@ export function parseAgrovetCatalog(data: Record<string, unknown>): AgrovetCatal
     link.categoryId = categoryId
   }
 
-  const sku = asString(catalog.sku)
-  if (sku) link.sku = sku
-
   const syncStatus = asString(catalog.sync_status)
   if (syncStatus) link.syncStatus = syncStatus
 
@@ -131,6 +120,28 @@ export function parseAgrovetCatalog(data: Record<string, unknown>): AgrovetCatal
   return link
 }
 
+function mapVariant(raw: unknown): MnyamaShopFirebaseVariant | null {
+  if (!raw || typeof raw !== 'object') return null
+  const data = raw as Record<string, unknown>
+
+  const variantId = asString(data.variant_id)
+  const sku = asString(data.sku)
+  const name = asString(data.name)
+  if (!variantId || !isUuid(variantId) || !sku || !name) return null
+
+  const sellingPrice =
+    asNumber(data.default_selling_price) ?? asNumber(data.base_price_constant) ?? 0
+  const costPrice = asNumber(data.default_cost_price) ?? sellingPrice
+
+  return {
+    variantId,
+    sku,
+    name,
+    defaultSellingPrice: sellingPrice,
+    defaultCostPrice: costPrice
+  }
+}
+
 export function mapMnyamaShopProduct(doc: ProductDoc): MnyamaShopFirebaseProduct | null {
   const name = asString(doc.data.name)
   if (!name) return null
@@ -138,9 +149,14 @@ export function mapMnyamaShopProduct(doc: ProductDoc): MnyamaShopFirebaseProduct
   const agrovetCatalog = parseAgrovetCatalog(doc.data)
   if (!agrovetCatalog) return null
 
-  const basePrice = asNumber(doc.data.base_price_constant) ?? 0
-  const sellingPrice = Math.round(basePrice)
-  const sku = agrovetCatalog.sku ?? fallbackVariantSku(doc.id)
+  const variants = (Array.isArray(doc.data.variants) ? doc.data.variants : [])
+    .map(mapVariant)
+    .filter((v): v is MnyamaShopFirebaseVariant => v !== null)
+
+  // No variants means nothing to sync, even though agrovet_catalog is
+  // present — treat it the same as "not linked" rather than creating a
+  // product with zero variants.
+  if (variants.length === 0) return null
 
   return {
     firebaseDocId: doc.id,
@@ -149,14 +165,7 @@ export function mapMnyamaShopProduct(doc: ProductDoc): MnyamaShopFirebaseProduct
     description: asString(doc.data.description_html) ?? '',
     ...(asString(doc.data.category) ? { categoryName: asString(doc.data.category)! } : {}),
     ...(firstImageUrl(doc.data.images) ? { imageUrl: firstImageUrl(doc.data.images)! } : {}),
-    variant: {
-      sku,
-      name,
-      defaultSellingPrice: sellingPrice,
-      defaultCostPrice: sellingPrice,
-      stockQuantity: asNumber(doc.data.quantity_in_stock) ?? 0,
-      isActive: asBoolean(doc.data.published, true)
-    }
+    variants
   }
 }
 
@@ -193,6 +202,9 @@ async function resolveCategoryId(
 
   if (!categoryName) return undefined
 
+  // Name match is the durable link — category_id above can go stale across
+  // a database rebuild (fresh UUIDs each time), but a category name like
+  // "Animal Vaccine" is stable as long as it's pre-seeded.
   const existing = await prisma.category.findFirst({
     where: { name: { equals: categoryName, mode: 'insensitive' } },
     select: { id: true }
@@ -208,7 +220,8 @@ async function resolveCategoryId(
 
 type UpsertOutcome = {
   productCreated: boolean
-  variantCreated: boolean
+  variantsCreated: number
+  variantsUpdated: number
 }
 
 async function resolveProductId(
@@ -216,10 +229,10 @@ async function resolveProductId(
   mapped: MnyamaShopFirebaseProduct,
   categoryId: string | undefined
 ): Promise<{ productId: string; productCreated: boolean }> {
-  const { variantId, productId: catalogProductId } = mapped.agrovetCatalog
+  const { defaultVariantId, productId: catalogProductId } = mapped.agrovetCatalog
 
   const existingVariant = await prisma.productVariant.findUnique({
-    where: { id: variantId },
+    where: { id: defaultVariantId },
     select: { productId: true }
   })
   if (existingVariant) {
@@ -294,7 +307,6 @@ async function upsertCatalogRow(
   mapped: MnyamaShopFirebaseProduct,
   categoryId: string | undefined
 ): Promise<UpsertOutcome> {
-  const variantId = mapped.agrovetCatalog.variantId
   const catalogProductId = mapped.agrovetCatalog.productId
 
   let { productId, productCreated } = await resolveProductId(prisma, mapped, categoryId)
@@ -330,24 +342,25 @@ async function upsertCatalogRow(
     })
   }
 
-  const variantData = {
-    productId,
-    name: mapped.variant.name,
-    sku: mapped.variant.sku,
-    defaultSellingPrice: mapped.variant.defaultSellingPrice,
-    defaultCostPrice: mapped.variant.defaultCostPrice
-  }
+  let variantsCreated = 0
+  let variantsUpdated = 0
 
-  const variantCreated = await upsertVariant(
-    prisma,
-    variantId,
-    mapped.variant.sku,
-    variantData
-  )
+  for (const variant of mapped.variants) {
+    const created = await upsertVariant(prisma, variant.variantId, variant.sku, {
+      productId,
+      name: variant.name,
+      sku: variant.sku,
+      defaultSellingPrice: variant.defaultSellingPrice,
+      defaultCostPrice: variant.defaultCostPrice
+    })
+    if (created) variantsCreated += 1
+    else variantsUpdated += 1
+  }
 
   return {
     productCreated,
-    variantCreated
+    variantsCreated,
+    variantsUpdated
   }
 }
 
@@ -400,7 +413,7 @@ export async function seedProductsFromFirebase(
         mapped.agrovetCatalog,
         mapped.categoryName
       )
-      const { productCreated, variantCreated } = await upsertCatalogRow(
+      const { productCreated, variantsCreated, variantsUpdated } = await upsertCatalogRow(
         prisma,
         mapped,
         categoryId
@@ -409,8 +422,8 @@ export async function seedProductsFromFirebase(
       if (productCreated) result.productsCreated += 1
       else result.productsUpdated += 1
 
-      if (variantCreated) result.variantsCreated += 1
-      else result.variantsUpdated += 1
+      result.variantsCreated += variantsCreated
+      result.variantsUpdated += variantsUpdated
     } catch (error) {
       result.errors.push(
         `Failed to import ${doc.id}: ${error instanceof Error ? error.message : String(error)}`
