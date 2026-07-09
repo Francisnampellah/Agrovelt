@@ -126,25 +126,18 @@ export class OrganizationController {
     query('from').optional().isISO8601().withMessage('Valid from date is required'),
     query('to').optional().isISO8601().withMessage('Valid to date is required'),
     query('shopIds').optional().isString(),
-    // Only enforced when the caller supplies an explicit range (report
-    // generation) — the Finance hub's default all-time view calls this
-    // with no from/to and must stay unbounded.
+    // The "span >= 24h" / "starts within 3 months" guardrails belong to the
+    // report-generation UX only, and are already enforced client-side in
+    // ReportGeneratorDrawer.jsx before it ever calls this endpoint. This
+    // endpoint also backs the Overview KPI cards, which legitimately query
+    // much shorter ("today") and much longer ("year to date") ranges — so
+    // only the future-date check, a real data-integrity concern, belongs
+    // here.
     query('to').custom((value, { req }) => {
       if (!req.query?.from || !value) return true
 
-      const from = new Date(String(req.query.from))
       const to = new Date(String(value))
-      const spanMs = to.getTime() - from.getTime()
       const oneDayMs = 24 * 60 * 60 * 1000
-      const threeMonthsAgo = new Date()
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-
-      if (spanMs < oneDayMs) {
-        throw new Error('Report range must span at least 24 hours')
-      }
-      if (from < threeMonthsAgo) {
-        throw new Error('Report range cannot start more than 3 months ago')
-      }
       // Allow a day of slack past "now": the frontend defaults "to" to
       // today and sends end-of-day (23:59:59) with no timezone designator,
       // which JS parses as the caller's local time — so "today" in a UTC+3
