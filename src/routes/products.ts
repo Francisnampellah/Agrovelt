@@ -395,7 +395,7 @@ router.post('/products/:id/image', authMiddleware.authenticate, uploadProductIma
  * @swagger
  * /api/products/{id}:
  *   delete:
- *     summary: Delete a product
+ *     summary: Delete a product and all of its variants
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -405,10 +405,15 @@ router.post('/products/:id/image', authMiddleware.authenticate, uploadProductIma
  *         required: true
  *         schema: { type: string, format: uuid }
  *         description: Product UUID
- *     description: Delete a product and its associated image file from storage.
+ *     description: |
+ *       Deletes the product together with every one of its variants, plus
+ *       the product's image file. Every variant is checked for existing
+ *       usage (inventory, pricing, purchases, sales, transfers) first — if
+ *       any variant is in use, nothing is deleted and the request fails
+ *       with a 400 listing which variant(s) blocked it.
  *     responses:
  *       200:
- *         description: Product deleted successfully
+ *         description: Product and all its variants deleted successfully
  *         content:
  *           application/json:
  *             schema:
@@ -417,6 +422,12 @@ router.post('/products/:id/image', authMiddleware.authenticate, uploadProductIma
  *                 message:
  *                   type: string
  *                   example: Product deleted successfully
+ *       400:
+ *         description: One or more variants are already in use — nothing was deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Product not found
  *         content:
