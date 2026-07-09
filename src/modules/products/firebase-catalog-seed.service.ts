@@ -162,7 +162,7 @@ export function mapMnyamaShopProduct(doc: ProductDoc): MnyamaShopFirebaseProduct
     firebaseDocId: doc.id,
     agrovetCatalog,
     name,
-    description: asString(doc.data.description_html) ?? '',
+    description: asString(doc.data.description_text) ?? '',
     ...(asString(doc.data.category) ? { categoryName: asString(doc.data.category)! } : {}),
     ...(firstImageUrl(doc.data.images) ? { imageUrl: firstImageUrl(doc.data.images)! } : {}),
     variants
