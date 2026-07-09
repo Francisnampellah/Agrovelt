@@ -72,7 +72,7 @@
  *       400:
  *         description: Validation error or insufficient stock
  *
- * /api/inventory/shop/{shopId}:
+ * /api/inventory/shops/{shopId}:
  *   get:
  *     tags: [Inventory]
  *     summary: Get all inventory items for a specific shop
@@ -88,7 +88,7 @@
  *       200:
  *         description: List of inventory items
  *
- * /api/inventory/transactions/shop/{shopId}:
+ * /api/inventory/shops/{shopId}/transactions:
  *   get:
  *     tags: [Inventory]
  *     summary: Get inventory transaction history for a specific shop
