@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
+import type { FieldValue as FieldValueType } from 'firebase-admin/firestore'
 
 /**
  * One-time migration: converts Mnyama Shop product docs in Firestore from
@@ -63,6 +64,31 @@ function computeBPC(minOq: number, maxOq: number, minOp: number, maxOp: number):
   return minOp / minOq + drc * minOq
 }
 
+// Builds the exact object passed to doc.ref.update(). Firestore requires
+// FieldValue.delete() to appear as a genuine top-level key of the update()
+// call (dot-notation, e.g. "agrovet_catalog.variant_id") — it cannot be
+// nested inside a plain object value, which is what update({ agrovet_catalog:
+// { ...fields, variant_id: FieldValue.delete() } }) tried to do and Firestore
+// rejects at the SDK level (before any network call). Every other
+// agrovet_catalog.* field is written the same dot-notation way so this one
+// update() call replaces exactly the fields we intend, leaving anything else
+// on the document untouched.
+export function buildFirestoreUpdatePayload(
+  newCatalog: Record<string, unknown>,
+  synthesizedVariant: Record<string, unknown>,
+  deleteSentinel: unknown
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = { variants: [synthesizedVariant] }
+
+  for (const [key, value] of Object.entries(newCatalog)) {
+    payload[`agrovet_catalog.${key}`] = value
+  }
+
+  payload['agrovet_catalog.variant_id'] = deleteSentinel
+
+  return payload
+}
+
 async function resolveCategoryId(
   prisma: PrismaClient,
   categoryName: string | undefined
@@ -84,6 +110,12 @@ async function main() {
 
   const snapshot = await firestore.collection('products').get()
   const plan: PlanEntry[] = []
+  const errors: string[] = []
+  let fieldValueDelete: FieldValueType | null = null
+  if (apply) {
+    const { FieldValue } = await import('firebase-admin/firestore')
+    fieldValueDelete = FieldValue.delete()
+  }
 
   for (const doc of snapshot.docs) {
     const data = doc.data() as Record<string, unknown>
@@ -148,11 +180,15 @@ async function main() {
     })
 
     if (apply) {
-      const { FieldValue } = await import('firebase-admin/firestore')
-      await doc.ref.update({
-        agrovet_catalog: { ...newCatalog, variant_id: FieldValue.delete() },
-        variants: [synthesizedVariant]
-      })
+      try {
+        await doc.ref.update(
+          buildFirestoreUpdatePayload(newCatalog, synthesizedVariant, fieldValueDelete)
+        )
+      } catch (error) {
+        errors.push(
+          `Failed to migrate ${doc.id}: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
     }
   }
 
@@ -161,7 +197,9 @@ async function main() {
     totalDocsWithAgrovetCatalog: plan.length,
     alreadyNewStructure: plan.filter(p => p.reason === 'already-new').length,
     unlinkedSkipped: plan.filter(p => p.reason === 'unlinked').length,
-    migrated: plan.filter(p => p.reason === 'migrated').length
+    migrated: plan.filter(p => p.reason === 'migrated').length,
+    failed: errors.length,
+    errors
   }
 
   console.log(JSON.stringify(summary, null, 2))
