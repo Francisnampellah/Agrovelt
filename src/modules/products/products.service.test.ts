@@ -118,3 +118,74 @@ test('deleteProduct succeeds for a product with zero variants', async () => {
 
   assert.equal(wasProductDeleted(), true)
 })
+
+function createVariantServiceHarness(options: { productName: string; existingSkus?: string[] }) {
+  const { productName, existingSkus = [] } = options
+  const skus = new Set(existingSkus)
+  let createAttempts = 0
+
+  const prisma = {
+    product: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        where.id === 'prod-1' ? { id: 'prod-1', name: productName } : null
+    },
+    productVariant: {
+      findUnique: async ({ where }: { where: { sku: string } }) =>
+        skus.has(where.sku) ? { id: `existing-${where.sku}`, sku: where.sku } : null,
+      create: async ({ data }: { data: { sku: string } }) => {
+        createAttempts += 1
+        if (skus.has(data.sku)) {
+          throw { code: 'P2002', meta: { target: ['sku'] } }
+        }
+        skus.add(data.sku)
+        return { id: 'new-variant', ...data }
+      }
+    }
+  }
+
+  const service = new ProductService(prisma as any)
+  return { service, getCreateAttempts: () => createAttempts }
+}
+
+test('createVariant generates a SKU from product/variant names when sku is omitted', async () => {
+  const { service } = createVariantServiceHarness({ productName: 'Oxytetracycline' })
+
+  const variant = await service.createVariant({
+    productId: 'prod-1',
+    name: '100ml Bottle'
+  } as never)
+
+  assert.equal(variant.sku, 'OXYTETRACYCLINE-100ML-BOTTLE')
+})
+
+test('createVariant retries with a suffixed SKU when the generated one collides', async () => {
+  const { service, getCreateAttempts } = createVariantServiceHarness({
+    productName: 'Oxytetracycline',
+    existingSkus: ['OXYTETRACYCLINE-100ML-BOTTLE']
+  })
+
+  const variant = await service.createVariant({
+    productId: 'prod-1',
+    name: '100ml Bottle'
+  } as never)
+
+  assert.equal(variant.sku, 'OXYTETRACYCLINE-100ML-BOTTLE-2')
+  assert.equal(getCreateAttempts(), 2)
+})
+
+test('createVariant still honors an explicit SKU and rejects duplicates', async () => {
+  const { service } = createVariantServiceHarness({
+    productName: 'Oxytetracycline',
+    existingSkus: ['CUSTOM-SKU']
+  })
+
+  await assert.rejects(
+    () =>
+      service.createVariant({
+        productId: 'prod-1',
+        name: '100ml Bottle',
+        sku: 'CUSTOM-SKU'
+      } as never),
+    /SKU already exists/
+  )
+})

@@ -451,14 +451,15 @@ router.delete(
  *       - bearerAuth: []
  *     description: |
  *       Create a product variant (size/package option).
- *       SKU must be globally unique across the system.
+ *       SKU must be globally unique across the system. If omitted, a SKU is
+ *       generated automatically from the product and variant names.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [productId, name, sku]
+ *             required: [productId, name]
  *             properties:
  *               productId:
  *                 type: string
@@ -471,7 +472,7 @@ router.delete(
  *               sku:
  *                 type: string
  *                 minLength: 1
- *                 description: Stock Keeping Unit - must be unique globally
+ *                 description: Stock Keeping Unit - must be unique globally. Auto-generated when omitted.
  *                 example: SKU-001-1KG
  *               defaultCostPrice:
  *                 type: number
