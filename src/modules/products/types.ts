@@ -13,6 +13,11 @@ export interface CreateProductRequest {
   imageUrl?: string
   imagePath?: string
   imageMimeType?: string
+  // Only honored for SUPER_ADMIN/ADMIN callers — see
+  // products.controller.ts#stripProvenanceFieldsUnlessAdmin. Used by the
+  // Mnyama Shop catalog sync path to mark provenance at creation time.
+  source?: 'MNYAMA_SHOP' | 'CUSTOM'
+  mnyamaShopDocId?: string | null
 }
 
 export type UpdateProductRequest = Partial<CreateProductRequest>
@@ -23,6 +28,8 @@ export interface CreateProductVariantRequest {
   // Optional: when omitted, the server generates a unique SKU from the
   // product and variant names.
   sku?: string
+  // Only honored for SUPER_ADMIN/ADMIN callers, same as Product.source above.
+  source?: 'MNYAMA_SHOP' | 'CUSTOM'
   defaultCostPrice?: number | null
   defaultSellingPrice?: number | null
   markupPercent?: number | null
@@ -31,6 +38,7 @@ export interface CreateProductVariantRequest {
 export interface UpdateProductVariantRequest {
   name?: string
   sku?: string
+  source?: 'MNYAMA_SHOP' | 'CUSTOM'
   defaultCostPrice?: number | null
   defaultSellingPrice?: number | null
   markupPercent?: number | null
