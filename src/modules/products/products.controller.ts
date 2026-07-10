@@ -5,7 +5,19 @@ import { BulkProductService } from './bulk-products.service'
 import { seedProductsFromFirebase } from './firebase-catalog-seed.service'
 import { parseExcelFile } from '../../utils/excelParser'
 import { generateProductTemplate, saveTemplate } from '../../utils/excelTemplateGenerator'
+import { AuthenticatedRequest } from '../auth/types'
 import { PrismaClient } from '@prisma/client'
+
+// source/mnyamaShopDocId claim provenance the client can't be trusted to set
+// arbitrarily (product/variant creation is open to any authenticated agrovet
+// user) — only the Mnyama Shop catalog sync path (run by an admin identity)
+// should be able to set them, so strip them from any other caller's body.
+function stripProvenanceFieldsUnlessAdmin(req: AuthenticatedRequest): void {
+  const role = req.user?.role
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return
+  delete req.body.source
+  delete req.body.mnyamaShopDocId
+}
 
 export class ProductController {
   constructor(
@@ -25,7 +37,9 @@ export class ProductController {
     body('unit').optional().isString(),
     body('dosageInfo').optional().isString(),
     body('manufacturer').optional().isString(),
-    body('isRestricted').optional().isBoolean()
+    body('isRestricted').optional().isBoolean(),
+    body('source').optional().isIn(['MNYAMA_SHOP', 'CUSTOM']).withMessage('Invalid source'),
+    body('mnyamaShopDocId').optional({ nullable: true }).isString()
   ]
 
   productUpdateValidation = [
@@ -35,13 +49,16 @@ export class ProductController {
     body('unit').optional({ nullable: true }).isString(),
     body('dosageInfo').optional({ nullable: true }).isString(),
     body('manufacturer').optional({ nullable: true }).isString(),
-    body('isRestricted').optional().isBoolean()
+    body('isRestricted').optional().isBoolean(),
+    body('source').optional().isIn(['MNYAMA_SHOP', 'CUSTOM']).withMessage('Invalid source'),
+    body('mnyamaShopDocId').optional({ nullable: true }).isString()
   ]
 
   variantValidation = [
     body('productId').isString().notEmpty().withMessage('Valid product ID is required'),
     body('name').trim().notEmpty().withMessage('Variant name is required'),
     body('sku').optional({ checkFalsy: true }).trim(),
+    body('source').optional().isIn(['MNYAMA_SHOP', 'CUSTOM']).withMessage('Invalid source'),
     body('defaultCostPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default cost price must be 0 or greater').toFloat(),
     body('defaultSellingPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default selling price must be 0 or greater').toFloat()
       .custom((value, { req }) => {
@@ -57,6 +74,7 @@ export class ProductController {
   variantUpdateValidation = [
     body('name').optional().trim().notEmpty().withMessage('Variant name cannot be empty'),
     body('sku').optional().trim().notEmpty().withMessage('SKU cannot be empty'),
+    body('source').optional().isIn(['MNYAMA_SHOP', 'CUSTOM']).withMessage('Invalid source'),
     body('defaultCostPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default cost price must be 0 or greater').toFloat(),
     body('defaultSellingPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default selling price must be 0 or greater').toFloat()
       .custom((value, { req }) => {
@@ -102,6 +120,8 @@ export class ProductController {
         return res.status(400).json({ errors: errors.array() })
       }
 
+      stripProvenanceFieldsUnlessAdmin(req)
+
       let imagePath: string | undefined
       let mimeType: string | undefined
 
@@ -126,6 +146,8 @@ export class ProductController {
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      stripProvenanceFieldsUnlessAdmin(req)
 
       const product = await this.productService.updateProduct(String(req.params.id), req.body)
       res.json({ data: product })
@@ -196,6 +218,8 @@ export class ProductController {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
+      stripProvenanceFieldsUnlessAdmin(req)
+
       const variant = await this.productService.createVariant(req.body)
       res.status(201).json({ data: variant })
     } catch (error: any) {
@@ -207,6 +231,8 @@ export class ProductController {
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      stripProvenanceFieldsUnlessAdmin(req)
 
       const variant = await this.productService.updateVariant(String(req.params.id), req.body)
       res.json({ data: variant })
