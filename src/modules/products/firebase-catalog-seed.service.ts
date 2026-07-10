@@ -272,6 +272,7 @@ async function upsertVariant(
     productId: string
     name: string
     sku: string
+    source: 'MNYAMA_SHOP'
     defaultSellingPrice: number
     defaultCostPrice: number
   }
@@ -315,7 +316,9 @@ async function upsertCatalogRow(
     name: mapped.name,
     description: mapped.description,
     imageUrl: mapped.imageUrl ?? null,
-    categoryId: categoryId ?? null
+    categoryId: categoryId ?? null,
+    source: 'MNYAMA_SHOP' as const,
+    mnyamaShopDocId: mapped.firebaseDocId
   }
 
   if (catalogProductId && productId !== catalogProductId) {
@@ -350,6 +353,7 @@ async function upsertCatalogRow(
       productId,
       name: variant.name,
       sku: variant.sku,
+      source: 'MNYAMA_SHOP',
       defaultSellingPrice: variant.defaultSellingPrice,
       defaultCostPrice: variant.defaultCostPrice
     })
