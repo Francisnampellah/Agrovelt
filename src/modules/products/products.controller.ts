@@ -41,7 +41,7 @@ export class ProductController {
   variantValidation = [
     body('productId').isString().notEmpty().withMessage('Valid product ID is required'),
     body('name').trim().notEmpty().withMessage('Variant name is required'),
-    body('sku').trim().notEmpty().withMessage('SKU is required'),
+    body('sku').optional({ checkFalsy: true }).trim(),
     body('defaultCostPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default cost price must be 0 or greater').toFloat(),
     body('defaultSellingPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default selling price must be 0 or greater').toFloat()
       .custom((value, { req }) => {

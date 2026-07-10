@@ -20,7 +20,9 @@ export type UpdateProductRequest = Partial<CreateProductRequest>
 export interface CreateProductVariantRequest {
   productId: string
   name: string
-  sku: string
+  // Optional: when omitted, the server generates a unique SKU from the
+  // product and variant names.
+  sku?: string
   defaultCostPrice?: number | null
   defaultSellingPrice?: number | null
   markupPercent?: number | null

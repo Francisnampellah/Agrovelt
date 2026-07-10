@@ -8,6 +8,35 @@ import {
 } from './types'
 import { deleteFile, getFilePath } from '../../utils/fileUpload'
 
+const MAX_SKU_GENERATION_ATTEMPTS = 5
+
+interface PrismaKnownRequestErrorLike {
+  code?: string
+  meta?: {
+    target?: unknown
+  }
+}
+
+function isSkuUniqueConflict(error: unknown): boolean {
+  const prismaError = error as PrismaKnownRequestErrorLike
+  return (
+    prismaError?.code === 'P2002' &&
+    Array.isArray(prismaError.meta?.target) &&
+    prismaError.meta.target.includes('sku')
+  )
+}
+
+// Builds a readable SKU from product/variant names, e.g. "OXYTETRACYCLINE"
+// + "100ml Bottle" -> "OXYTETRACYCLINE-100ML-BOTTLE".
+function slugifyForSku(value: string): string {
+  const slug = value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24)
+  return slug || 'ITEM'
+}
+
 export class ProductService {
   constructor(private prisma: PrismaClient) {}
 
@@ -171,11 +200,6 @@ export class ProductService {
     })
     if (!product) throw new Error('Product not found')
 
-    const existingVariant = await this.prisma.productVariant.findUnique({
-      where: { sku: data.sku }
-    })
-    if (existingVariant) throw new Error('SKU already exists')
-
     if (
       data.defaultCostPrice != null &&
       data.defaultSellingPrice != null &&
@@ -184,9 +208,33 @@ export class ProductService {
       throw new Error('Default selling price cannot be less than default cost price')
     }
 
-    return this.prisma.productVariant.create({
-      data
-    })
+    const sku = data.sku?.trim()
+    if (sku) {
+      const existingVariant = await this.prisma.productVariant.findUnique({
+        where: { sku }
+      })
+      if (existingVariant) throw new Error('SKU already exists')
+
+      return this.prisma.productVariant.create({
+        data: { ...data, sku }
+      })
+    }
+
+    // No SKU supplied — generate one from the product/variant names, retrying
+    // on a rare collision the same way sale.service.ts retries receiptNumber.
+    const base = `${slugifyForSku(product.name)}-${slugifyForSku(data.name)}`
+    for (let attempt = 1; attempt <= MAX_SKU_GENERATION_ATTEMPTS; attempt += 1) {
+      const candidate = attempt === 1 ? base : `${base}-${attempt}`
+      try {
+        return await this.prisma.productVariant.create({
+          data: { ...data, sku: candidate }
+        })
+      } catch (error) {
+        if (isSkuUniqueConflict(error) && attempt < MAX_SKU_GENERATION_ATTEMPTS) continue
+        throw error
+      }
+    }
+    throw new Error('Failed to generate a unique SKU, please try again')
   }
 
   async updateVariant(id: string, data: UpdateProductVariantRequest) {
