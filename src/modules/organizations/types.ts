@@ -33,3 +33,24 @@ export interface CreateOrganizationForUserResponse {
   organization: OrganizationResponse
   user: LinkedUserResponse
 }
+
+export type CreateOrgUserInput = {
+  name: string
+  email: string
+  password: string
+  /** Required — written to Firebase Firestore users/{uid}.phone_no */
+  phoneNumber: string
+  role: 'STAFF' | 'MANAGER'
+  managerAccess?: 'ONE_SHOP' | 'ALL_SHOPS'
+  shopId?: string
+}
+
+export type UpdateOrgUserInput = {
+  name?: string
+  email?: string
+  password?: string
+  phoneNumber?: string
+  role?: 'STAFF' | 'MANAGER'
+  managerAccess?: 'ONE_SHOP' | 'ALL_SHOPS'
+  shopId?: string
+}

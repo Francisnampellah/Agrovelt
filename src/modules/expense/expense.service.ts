@@ -49,9 +49,14 @@ export class ExpenseService {
     })
   }
 
-  async getExpensesByOrganization(organizationId: string) {
+  async getExpensesByOrganization(organizationId: string, shopIds?: string[]) {
     return this.prisma.expense.findMany({
-      where: { shop: { organizationId } },
+      where: {
+        shop: {
+          organizationId,
+          ...(shopIds ? { id: { in: shopIds } } : {})
+        }
+      },
       include: { shop: { select: { id: true, name: true } } },
       orderBy: { date: 'desc' }
     })

@@ -15,7 +15,13 @@ enum Role {
   SUPER_ADMIN
   ADMIN
   OWNER
+  MANAGER
   STAFF
+}
+
+enum ManagerAccess {
+  ONE_SHOP
+  ALL_SHOPS
 }
 
 enum ShopType {
@@ -94,6 +100,7 @@ model User {
   email          String   @unique
   passwordHash   String?
   role           Role // SUPER_ADMIN, OWNER, ADMIN, STAFF
+  managerAccess  ManagerAccess?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
 

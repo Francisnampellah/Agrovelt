@@ -75,8 +75,9 @@ router.get('/users', authMiddleware.authenticate, authMiddleware.authorize('ADMI
    *                 description: Same password used for Firebase login (no complexity rules)
  *               role:
  *                 type: string
- *                 enum: [SUPER_ADMIN, ADMIN, OWNER, STAFF]
- *                 default: STAFF
+ *                 enum: [SUPER_ADMIN, ADMIN, OWNER]
+ *                 default: OWNER
+ *                 description: STAFF and MANAGER must use POST /api/organizations/{id}/users
  *               organizationId:
  *                 type: string
  *                 format: uuid

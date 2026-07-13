@@ -7,7 +7,10 @@ export interface CollectorAuthUser {
   role: string
   organizationId?: string | null
   isActive: boolean
+  managerAccess?: 'ONE_SHOP' | 'ALL_SHOPS' | null
+  allShops?: boolean
   shopScope?: string[]
+  shops?: { shopId: string; name: string }[]
 }
 
 /** Mobile app accepts token | accessToken at top-level or under data */
@@ -44,6 +47,9 @@ export function collectorUserFromExchange(result: TokenResponse): CollectorAuthU
     role: u.role,
     organizationId: u.organizationId ?? null,
     isActive: u.isActive,
-    ...(u.shopScope ? { shopScope: u.shopScope } : {})
+    managerAccess: u.managerAccess ?? null,
+    ...(u.allShops !== undefined ? { allShops: u.allShops } : {}),
+    ...(u.shopScope ? { shopScope: u.shopScope } : {}),
+    ...(u.shops ? { shops: u.shops } : {})
   }
 }
