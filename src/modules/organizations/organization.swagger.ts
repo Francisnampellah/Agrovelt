@@ -287,4 +287,111 @@
  *     responses:
  *       200:
  *         description: Inventory transactions
+ *
+ * /api/organizations/{id}/users:
+ *   post:
+ *     tags: [Organizations, Users]
+ *     summary: Create an organization user
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, password, role]
+ *             properties:
+ *               name: { type: string }
+ *               email: { type: string, format: email }
+ *               password: { type: string, minLength: 8 }
+ *               role: { type: string, enum: [STAFF, MANAGER] }
+ *               managerAccess: { type: string, enum: [ONE_SHOP, ALL_SHOPS] }
+ *               shopId: { type: string, format: uuid }
+ *     responses:
+ *       201:
+ *         description: Organization user created
+ *       400:
+ *         description: Invalid input or assignment
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Shop not found in organization
+ *   get:
+ *     tags: [Organizations, Users]
+ *     summary: List organization users
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization users
+ *       403:
+ *         description: Insufficient permissions
+ *
+ * /api/organizations/{id}/users/{userId}:
+ *   patch:
+ *     tags: [Organizations, Users]
+ *     summary: Update an organization user
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - name: userId
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               email: { type: string, format: email }
+ *               password: { type: string, minLength: 8 }
+ *               role: { type: string, enum: [STAFF, MANAGER] }
+ *               managerAccess: { type: string, enum: [ONE_SHOP, ALL_SHOPS] }
+ *               shopId: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization user updated
+ *       400:
+ *         description: Invalid input or assignment
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: User or shop not found
+ *
+ * /api/organizations/{id}/users/{userId}/deactivate:
+ *   post:
+ *     tags: [Organizations, Users]
+ *     summary: Deactivate an organization user
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - name: userId
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization user deactivated
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: User not found
  */

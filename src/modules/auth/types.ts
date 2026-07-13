@@ -33,7 +33,10 @@ export interface TokenResponse {
     role: string
     organizationId?: string | null
     isActive: boolean
+    managerAccess?: 'ONE_SHOP' | 'ALL_SHOPS' | null
+    allShops: boolean
     shopScope?: string[]
+    shops: { shopId: string; name: string }[]
   }
 }
 

@@ -13,6 +13,9 @@ import { assertOrganizationAccess } from './organization-access'
 import { OrganizationService } from './organization.service'
 import { CreateOrganizationRequest } from './types'
 import { formatCollectorAuthResponse } from '../auth/collectorResponse'
+import { assertShopInScope, resolveShopScope } from '../auth/shopScope'
+import { loadAuthActor } from '../auth/assertActor'
+import { canGenerateReports } from '../auth/permissions'
 
 export class OrganizationController {
   constructor(
@@ -122,7 +125,7 @@ export class OrganizationController {
 
   private orgErrorStatus(message: string): number {
     if (message === 'Organization not found') return 404
-    if (message === 'Access denied to this organization') return 403
+    if (message.includes('Access denied') || message.includes('Insufficient permissions')) return 403
     return 400
   }
 
@@ -133,6 +136,18 @@ export class OrganizationController {
     await assertOrganizationAccess(this.prisma, req.user.userId, req.user.role, organizationId)
   }
 
+  private async getReportShopIds(req: AuthenticatedRequest): Promise<string[] | undefined> {
+    const actor = await loadAuthActor(this.prisma, req)
+    const shopId = req.query.shopId ? String(req.query.shopId) : undefined
+    if (!canGenerateReports(actor, { allShopsScope: !shopId })) {
+      throw Object.assign(new Error('Insufficient permissions to generate reports'), { status: 403 })
+    }
+    if (!shopId) return undefined
+
+    await assertShopInScope(this.prisma, actor, shopId)
+    return [shopId]
+  }
+
   getSales = async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.user) {
@@ -141,15 +156,12 @@ export class OrganizationController {
 
       const organizationId = String(req.params.id)
       await assertOrganizationAccess(this.prisma, req.user.userId, req.user.role, organizationId)
+      const shopIds = await this.getReportShopIds(req)
 
-      const sales = await this.saleService.getSalesByOrganization(organizationId)
+      const sales = await this.saleService.getSalesByOrganization(organizationId, shopIds)
       res.json({ data: sales })
     } catch (error: any) {
-      const status = error.message === 'Organization not found'
-        ? 404
-        : error.message === 'Access denied to this organization'
-          ? 403
-          : 400
+      const status = error.status ?? this.orgErrorStatus(error.message)
       res.status(status).json({ error: error.message })
     }
   }
@@ -162,15 +174,12 @@ export class OrganizationController {
 
       const organizationId = String(req.params.id)
       await assertOrganizationAccess(this.prisma, req.user.userId, req.user.role, organizationId)
+      const shopIds = await this.getReportShopIds(req)
 
-      const expenses = await this.expenseService.getExpensesByOrganization(organizationId)
+      const expenses = await this.expenseService.getExpensesByOrganization(organizationId, shopIds)
       res.json({ data: expenses })
     } catch (error: any) {
-      const status = error.message === 'Organization not found'
-        ? 404
-        : error.message === 'Access denied to this organization'
-          ? 403
-          : 400
+      const status = error.status ?? this.orgErrorStatus(error.message)
       res.status(status).json({ error: error.message })
     }
   }
@@ -183,15 +192,12 @@ export class OrganizationController {
 
       const organizationId = String(req.params.id)
       await assertOrganizationAccess(this.prisma, req.user.userId, req.user.role, organizationId)
+      const shopIds = await this.getReportShopIds(req)
 
-      const purchases = await this.purchaseService.getPurchasesByOrganization(organizationId)
+      const purchases = await this.purchaseService.getPurchasesByOrganization(organizationId, shopIds)
       res.json({ data: purchases })
     } catch (error: any) {
-      const status = error.message === 'Organization not found'
-        ? 404
-        : error.message === 'Access denied to this organization'
-          ? 403
-          : 400
+      const status = error.status ?? this.orgErrorStatus(error.message)
       res.status(status).json({ error: error.message })
     }
   }
@@ -219,6 +225,13 @@ export class OrganizationController {
       await this.assertOrgAccess(req, organizationId)
 
       const shops = await this.shopService.getAllShops(organizationId)
+      if (req.user && (req.user.role === 'STAFF' || req.user.role === 'MANAGER')) {
+        const scope = await resolveShopScope(this.prisma, req.user)
+        if (!scope.allShops) {
+          return res.json({ data: shops.filter(shop => scope.shopIds.includes(shop.id)) })
+        }
+      }
+
       res.json({ data: shops })
     } catch (error: any) {
       const status = error.status ?? this.orgErrorStatus(error.message)
@@ -230,8 +243,9 @@ export class OrganizationController {
     try {
       const organizationId = String(req.params.id)
       await this.assertOrgAccess(req, organizationId)
+      const shopIds = await this.getReportShopIds(req)
 
-      const stock = await this.inventoryService.getInventoryByOrganization(organizationId)
+      const stock = await this.inventoryService.getInventoryByOrganization(organizationId, shopIds)
       res.json({ data: stock })
     } catch (error: any) {
       const status = error.status ?? this.orgErrorStatus(error.message)
@@ -246,12 +260,17 @@ export class OrganizationController {
 
       const organizationId = String(req.params.id)
       await this.assertOrgAccess(req, organizationId)
+      const shopIds = await this.getReportShopIds(req)
 
       const threshold = req.query.lowStockThreshold !== undefined
         ? Number(req.query.lowStockThreshold)
         : 10
 
-      const summary = await this.inventoryService.getStockSummaryByOrganization(organizationId, threshold)
+      const summary = await this.inventoryService.getStockSummaryByOrganization(
+        organizationId,
+        threshold,
+        shopIds
+      )
       res.json({ data: summary })
     } catch (error: any) {
       const status = error.status ?? this.orgErrorStatus(error.message)
@@ -266,10 +285,12 @@ export class OrganizationController {
 
       const organizationId = String(req.params.id)
       await this.assertOrgAccess(req, organizationId)
+      const shopIds = await this.getReportShopIds(req)
 
       const limit = req.query.limit ? Number(req.query.limit) : 50
       const transactions = await this.inventoryService.getTransactionsByOrganization(organizationId, {
         ...(req.query.shopId ? { shopId: String(req.query.shopId) } : {}),
+        ...(shopIds ? { shopIds } : {}),
         ...(req.query.cursor ? { cursor: String(req.query.cursor) } : {}),
         take: limit
       })

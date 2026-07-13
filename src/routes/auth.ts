@@ -42,9 +42,10 @@ export function createAuthRoutes(prisma: PrismaClient) {
    *                 example: Password1
    *               role:
    *                 type: string
-   *                 enum: [SUPER_ADMIN, ADMIN, OWNER, STAFF]
-   *                 default: STAFF
-   *                 example: ADMIN
+   *                 enum: [SUPER_ADMIN, ADMIN, OWNER]
+   *                 default: OWNER
+   *                 description: STAFF and MANAGER must use POST /api/organizations/{id}/users
+   *                 example: OWNER
    *               organizationId:
    *                 type: string
    *                 format: uuid

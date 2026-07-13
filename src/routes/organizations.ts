@@ -10,7 +10,7 @@ export function createOrganizationRoutes(
   deps?: OrganizationModuleDeps
 ) {
   const authMiddleware = new AuthMiddleware(new AuthService(prisma))
-  const { organizationController } = createOrganizationModule(prisma, deps)
+  const { organizationController, orgUsersController } = createOrganizationModule(prisma, deps)
 
 /**
  * @swagger
@@ -131,6 +131,38 @@ export function createOrganizationRoutes(
     '/organizations/:id/stock',
     authMiddleware.authenticate,
     organizationController.getStock
+  )
+
+  const canManageOrgUsers = authMiddleware.authorize('OWNER', 'ADMIN', 'SUPER_ADMIN')
+
+  router.post(
+    '/organizations/:id/users',
+    authMiddleware.authenticate,
+    canManageOrgUsers,
+    orgUsersController.createValidation,
+    orgUsersController.create
+  )
+
+  router.get(
+    '/organizations/:id/users',
+    authMiddleware.authenticate,
+    canManageOrgUsers,
+    orgUsersController.list
+  )
+
+  router.patch(
+    '/organizations/:id/users/:userId',
+    authMiddleware.authenticate,
+    canManageOrgUsers,
+    orgUsersController.updateValidation,
+    orgUsersController.update
+  )
+
+  router.post(
+    '/organizations/:id/users/:userId/deactivate',
+    authMiddleware.authenticate,
+    canManageOrgUsers,
+    orgUsersController.deactivate
   )
 
 /**

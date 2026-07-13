@@ -16,7 +16,7 @@ export function createPurchaseModule(prisma: PrismaClient, notificationService?:
   const notifications =
     notificationService ?? createNotificationModule(prisma).notificationService
 
-  const purchaseController = new PurchaseController(purchaseService, notifications)
+  const purchaseController = new PurchaseController(purchaseService, notifications, prisma)
 
   return { purchaseService, purchaseController }
 }

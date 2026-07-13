@@ -12,7 +12,7 @@ export function createExpenseModule(prisma: PrismaClient, notificationService?: 
   const notifications =
     notificationService ?? createNotificationModule(prisma).notificationService
 
-  const expenseController = new ExpenseController(expenseService, notifications)
+  const expenseController = new ExpenseController(expenseService, notifications, prisma)
 
   return { expenseService, expenseController }
 }

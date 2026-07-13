@@ -19,6 +19,19 @@ export class CashFlowService {
     await tx.cashFlowEntry.create({ data })
   }
 
+  async recordFunding(shopId: string, amount: number, recordedBy: string, note = 'Organization funding') {
+    return this.prisma.cashFlowEntry.create({
+      data: {
+        shopId,
+        amount,
+        recordedBy,
+        direction: CashFlowDirection.IN,
+        category: CashFlowCategory.ADJUSTMENT,
+        note
+      }
+    })
+  }
+
   // Public — queried by reports and dashboards
   async getSummary(shopId: string, from: Date, to: Date) {
     const entries = await this.prisma.cashFlowEntry.findMany({
