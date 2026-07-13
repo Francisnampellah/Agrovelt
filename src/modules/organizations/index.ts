@@ -11,6 +11,8 @@ import { SaleService } from '../sale/sale.service'
 import { ShopService } from '../shops/shop.service'
 import { OrganizationService } from './organization.service'
 import { OrganizationController } from './organization.controller'
+import { OrgUsersService } from './org-users.service'
+import { OrgUsersController } from './org-users.controller'
 
 export interface OrganizationModuleDeps {
   saleService: SaleService
@@ -27,6 +29,7 @@ export function createOrganizationModule(
 ) {
   const authService = new AuthService(prisma)
   const organizationService = new OrganizationService(prisma)
+  const orgUsersService = new OrgUsersService(prisma)
 
   const services = deps ?? {
     ...createNotificationModule(prisma),
@@ -45,13 +48,21 @@ export function createOrganizationModule(
     services.inventoryService,
     services.shopService
   )
+  const orgUsersController = new OrgUsersController(orgUsersService, prisma)
 
   return {
     organizationService,
-    organizationController
+    organizationController,
+    orgUsersService,
+    orgUsersController
   }
 }
 
-export { OrganizationService, OrganizationController }
+export {
+  OrganizationService,
+  OrganizationController,
+  OrgUsersService,
+  OrgUsersController
+}
 export * from './types'
 export * from './organization.swagger'
