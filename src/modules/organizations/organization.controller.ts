@@ -13,6 +13,7 @@ import { assertOrganizationAccess } from './organization-access'
 import { OrganizationService } from './organization.service'
 import { CreateOrganizationRequest } from './types'
 import { formatCollectorAuthResponse } from '../auth/collectorResponse'
+import { resolveShopScope } from '../auth/shopScope'
 
 export class OrganizationController {
   constructor(
@@ -219,6 +220,13 @@ export class OrganizationController {
       await this.assertOrgAccess(req, organizationId)
 
       const shops = await this.shopService.getAllShops(organizationId)
+      if (req.user && (req.user.role === 'STAFF' || req.user.role === 'MANAGER')) {
+        const scope = await resolveShopScope(this.prisma, req.user)
+        if (!scope.allShops) {
+          return res.json({ data: shops.filter(shop => scope.shopIds.includes(shop.id)) })
+        }
+      }
+
       res.json({ data: shops })
     } catch (error: any) {
       const status = error.status ?? this.orgErrorStatus(error.message)

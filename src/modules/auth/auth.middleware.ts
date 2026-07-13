@@ -3,6 +3,8 @@ import { AuthService } from './auth.service'
 import { firebaseAuth } from '../../config/firebase'
 import { AuthenticatedRequest, JWTPayload } from './types'
 import { normalizeAgrovetExchangeGlobalRole } from './firebaseRoleMapping'
+import { assertShopInScope } from './shopScope'
+import { AuthActor } from './permissions'
 
 export class AuthMiddleware {
   // Define public routes that don't require authentication
@@ -117,34 +119,25 @@ export class AuthMiddleware {
         return res.status(400).json({ error: 'Shop ID required' })
       }
 
-      // Admin can access all shops
-      if (req.user.role === 'ADMIN') {
+      if (req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN') {
         return next()
       }
 
-      // Check if user owns the shop or is staff
-      const shop = await this.authService['prisma'].shop.findUnique({
-        where: { id: shopId as string },
-        select: {
-          ownerId: true,
-          staff: {
-            where: { userId: req.user.userId },
-            select: { id: true }
-          }
-        }
+      const user = await this.authService['prisma'].user.findUnique({
+        where: { id: req.user.userId },
+        select: { managerAccess: true }
       })
-
-      if (!shop) {
-        return res.status(404).json({ error: 'Shop not found' })
+      const actor: AuthActor = {
+        userId: req.user.userId,
+        role: req.user.role,
+        ...(req.user.organizationId ? { organizationId: req.user.organizationId } : {}),
+        ...(user?.managerAccess ? { managerAccess: user.managerAccess } : {})
       }
-
-      if (shop.ownerId !== req.user.userId && shop.staff.length === 0) {
-        return res.status(403).json({ error: 'Access denied to this shop' })
-      }
+      await assertShopInScope(this.authService['prisma'], actor, String(shopId))
 
       next()
     } catch (error) {
-      return res.status(500).json({ error: 'Authorization check failed' })
+      return res.status(403).json({ error: 'Access denied to this shop' })
     }
   }
 
