@@ -34,3 +34,8 @@ Thumbs.db
 
 # Uploads (user-generated content)
 uploads/
+
+# Superpowers agent working state (task briefs/reports/review-packages) -
+# process artifacts, not deliverables. docs/superpowers/ (plans/specs) is
+# kept intentionally; this is not.
+.superpowers/
