@@ -304,17 +304,18 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, email, password, role]
+ *             required: [name, email, password, phoneNumber, role]
  *             properties:
  *               name: { type: string }
  *               email: { type: string, format: email }
  *               password: { type: string, minLength: 8 }
+ *               phoneNumber: { type: string, minLength: 9, description: Written to Firestore users/{uid}.phone_no }
  *               role: { type: string, enum: [STAFF, MANAGER] }
  *               managerAccess: { type: string, enum: [ONE_SHOP, ALL_SHOPS] }
  *               shopId: { type: string, format: uuid }
  *     responses:
  *       201:
- *         description: Organization user created
+ *         description: Organization user created (also provisions Firebase Auth + Firestore agrovet profile)
  *       400:
  *         description: Invalid input or assignment
  *       403:

@@ -150,7 +150,16 @@ Who can call these:
 | `SUPER_ADMIN` | Yes (any org) |
 | `MANAGER` / `STAFF` | No (`403`) |
 
-This is the **invite / register user for org or shop** flow. There is no email magic-link invite yet — the caller creates the account with name, email, password, role, and shop assignment. The new user then logs in / exchanges Firebase token.
+This is the **invite / register user for org or shop** flow. There is no email magic-link invite yet — the caller creates the account with name, email, password, phone, role, and shop assignment.
+
+On success the backend also provisions Firebase Auth + Firestore so the invitee can sign in on mobile immediately:
+
+1. Firebase Auth user (same email/password)
+2. Custom claim `globalRole: "agrovet"`
+3. Firestore `users/{uid}` with required fields (see below)
+4. Prisma `User.firebaseUid` linked to that uid
+
+The invitee then signs in with Firebase and calls Agrovelt exchange/login.
 
 ### 4.1 Create user
 
@@ -163,6 +172,7 @@ This is the **invite / register user for org or shop** flow. There is no email m
   "name": "Amina",
   "email": "amina@example.com",
   "password": "Secret123!",
+  "phoneNumber": "0712345678",
   "role": "STAFF",
   "shopId": "shop-uuid"
 }
@@ -170,6 +180,7 @@ This is the **invite / register user for org or shop** flow. There is no email m
 
 Rules:
 
+- `phoneNumber` **required** (min 9 chars; stored on Firestore as `phone_no`)
 - `shopId` **required**
 - `managerAccess` **not allowed**
 
@@ -180,6 +191,7 @@ Rules:
   "name": "John",
   "email": "john@example.com",
   "password": "Secret123!",
+  "phoneNumber": "0712345678",
   "role": "MANAGER",
   "managerAccess": "ONE_SHOP",
   "shopId": "shop-uuid"
@@ -193,6 +205,7 @@ Rules:
   "name": "Mary",
   "email": "mary@example.com",
   "password": "Secret123!",
+  "phoneNumber": "0712345678",
   "role": "MANAGER",
   "managerAccess": "ALL_SHOPS"
 }
@@ -200,12 +213,39 @@ Rules:
 
 Rules:
 
+- `phoneNumber` **required** for every invite  
 - `managerAccess` **required** for MANAGER  
 - `ALL_SHOPS` → do **not** send `shopId`  
 - `ONE_SHOP` → `shopId` **required**  
 - Password min length: **8**
 
-Success: `201` with user object (**no** `passwordHash`).
+Success: `201` with user object (**no** `passwordHash`; includes `firebaseUid`).
+
+**Firestore `users/{uid}` written on invite:**
+
+| Field | Value |
+|-------|--------|
+| `uid` | Firebase Auth uid |
+| `email` | invite email |
+| `display_name` | invite `name` |
+| `first_name` / `last_name` | split from `name` |
+| `phone_no` | from request `phoneNumber` |
+| `role` | `"agrovet"` |
+| `sign_up_provider` | `"email"` |
+| `verification_status` | `"verified"` |
+| `on_boarding_complete` | `true` |
+| `on_boarding_stage_1` | `true` |
+| `collector_registered` | `true` |
+| `collector_organization_id` | org id from path |
+| `collector_organization_name` | org name |
+| `collector_organization_slug` | org slug |
+| `face_photo_url` | `""` |
+| `gender` | `""` (mobile can update later) |
+| `fcmTokens` | `{}` (mobile fills android/ios later) |
+| `created_date` | server timestamp |
+
+Custom claim: `globalRole: "agrovet"`.  
+Not set on invite (device-owned): `last_fcm_token_update`, real FCM token values.
 
 ### 4.2 List users
 
@@ -346,9 +386,10 @@ Sales line items support exact inventory row depletion.
 
 ## 9. Firebase exchange notes
 
+- Org invites create the Firebase Auth user + Firestore profile up front (section 4.1), so invitees already have `role: "agrovet"` and onboarding flags set.
 - Existing Agrovet users with `STAFF` or `MANAGER` keep that role on exchange (not overwritten to `OWNER`).
 - New Firebase users without a prior Agrovet STAFF/MANAGER account still map `agrovet → OWNER` unless created via org user APIs first.
-- After OWNER creates a STAFF/MANAGER, that user should exchange/login and receive the scoped payload in section 2.
+- After OWNER creates a STAFF/MANAGER, that user should Firebase-sign-in then exchange/login and receive the scoped payload in section 2.
 
 ---
 
@@ -359,7 +400,9 @@ Sales line items support exact inventory row depletion.
 - [ ] Hide user management except for OWNER  
 - [ ] Hide funding except OWNER and MANAGER `ALL_SHOPS`  
 - [ ] Hide stock-add / purchase / reports for STAFF  
-- [ ] Build OWNER user-management screens against org user APIs  
+- [ ] Build OWNER user-management screens against org user APIs (include required `phoneNumber`)  
+- [ ] After invite, sign in with the same email/password via Firebase (onboarding already complete)  
+
 - [ ] Handle `403` as “out of scope / not allowed” (not generic network error)  
 - [ ] Prefer `inventoryId` on sale line items  
 - [ ] Show stock from inventory endpoints, not product catalog quantity  

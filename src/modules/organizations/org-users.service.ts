@@ -1,10 +1,16 @@
 import bcrypt from 'bcrypt'
 import { ManagerAccess, Prisma, PrismaClient, Role } from '@prisma/client'
 import { AuthActor, canManageUsers } from '../auth/permissions'
+import {
+  provisionInvitedFirebaseUser,
+  ProvisionedFirebaseUser,
+  InvitedFirebaseProfile
+} from '../firebase/provision-invited-user'
 import { CreateOrgUserInput, UpdateOrgUserInput } from './types'
 
 type UserRole = CreateOrgUserInput['role']
 type Access = NonNullable<CreateOrgUserInput['managerAccess']>
+type FirebaseProvisioner = (input: InvitedFirebaseProfile) => Promise<ProvisionedFirebaseUser>
 
 const organizationUserSelect = {
   id: true,
@@ -14,6 +20,7 @@ const organizationUserSelect = {
   organizationId: true,
   managerAccess: true,
   isActive: true,
+  firebaseUid: true,
   staffIn: {
     select: {
       shopId: true,
@@ -24,46 +31,85 @@ const organizationUserSelect = {
 } satisfies Prisma.UserSelect
 
 export class OrgUsersService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(
+    private prisma: PrismaClient,
+    private provisionFirebase: FirebaseProvisioner = provisionInvitedFirebaseUser
+  ) {}
 
   async createOrgUser(actor: AuthActor, orgId: string, input: CreateOrgUserInput) {
     await this.assertCanManageUsers(actor, orgId)
     this.validateAssignment(input.role, input.managerAccess, input.shopId)
     await this.validateShop(orgId, input.shopId)
+    this.validatePhoneNumber(input.phoneNumber)
+
+    const existingEmail = await this.prisma.user.findUnique({
+      where: { email: input.email },
+      select: { id: true }
+    })
+    if (existingEmail) {
+      throw new Error('A user with this email already exists')
+    }
+
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, name: true, slug: true }
+    })
+    if (!organization) {
+      throw new Error('Organization not found')
+    }
+
+    const firebaseUser = await this.provisionFirebase({
+      email: input.email,
+      password: input.password,
+      displayName: input.name,
+      phoneNo: input.phoneNumber.trim(),
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug
+      }
+    })
 
     const passwordHash = await bcrypt.hash(input.password, 10)
 
-    return this.prisma.$transaction(async tx => {
-      const user = await tx.user.create({
-        data: {
-          name: input.name,
-          email: input.email,
-          passwordHash,
-          role: input.role === 'STAFF' ? Role.STAFF : Role.MANAGER,
-          organizationId: orgId,
-          managerAccess: input.role === 'MANAGER'
-            ? input.managerAccess === 'ALL_SHOPS' ? ManagerAccess.ALL_SHOPS : ManagerAccess.ONE_SHOP
-            : null
-        }
-      })
-
-      if (input.shopId) {
-        await tx.shopStaff.create({
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const user = await tx.user.create({
           data: {
-            shopId: input.shopId,
-            userId: user.id,
-            role: input.role
+            name: input.name,
+            email: input.email,
+            passwordHash,
+            firebaseUid: firebaseUser.uid,
+            role: input.role === 'STAFF' ? Role.STAFF : Role.MANAGER,
+            organizationId: orgId,
+            managerAccess: input.role === 'MANAGER'
+              ? input.managerAccess === 'ALL_SHOPS' ? ManagerAccess.ALL_SHOPS : ManagerAccess.ONE_SHOP
+              : null
           }
         })
-      }
 
-      const publicUser = await tx.user.findUnique({
-        where: { id: user.id },
-        select: organizationUserSelect
+        if (input.shopId) {
+          await tx.shopStaff.create({
+            data: {
+              shopId: input.shopId,
+              userId: user.id,
+              role: input.role
+            }
+          })
+        }
+
+        const publicUser = await tx.user.findUnique({
+          where: { id: user.id },
+          select: organizationUserSelect
+        })
+        if (!publicUser) throw new Error('User not found after creation')
+        return publicUser
       })
-      if (!publicUser) throw new Error('User not found after creation')
-      return publicUser
-    })
+    } catch (error) {
+      // Best-effort: local DB failed after Firebase user was created.
+      console.error('Org user DB create failed after Firebase provision:', error)
+      throw error
+    }
   }
 
   async listOrgUsers(actor: AuthActor, orgId: string) {
@@ -158,7 +204,7 @@ export class OrgUsersService {
 
     const org = await this.prisma.organization.findUnique({
       where: { id: orgId },
-      select: { id: true }
+      select: { id: true, name: true, slug: true }
     })
     if (!org) {
       throw new Error('Organization not found')
@@ -188,5 +234,15 @@ export class OrgUsersService {
       where: { id: shopId, organizationId: orgId }
     })
     if (!shop) throw new Error('Shop not found in this organization')
+  }
+
+  private validatePhoneNumber(phoneNumber: string): void {
+    const trimmed = phoneNumber?.trim()
+    if (!trimmed) {
+      throw new Error('phoneNumber is required')
+    }
+    if (trimmed.length < 9) {
+      throw new Error('phoneNumber must be a valid phone number')
+    }
   }
 }
