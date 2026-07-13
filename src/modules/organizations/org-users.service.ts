@@ -44,7 +44,9 @@ export class OrgUsersService {
     })
   }
 
-  async listOrgUsers(orgId: string) {
+  async listOrgUsers(actor: AuthActor, orgId: string) {
+    this.assertCanManageUsers(actor, orgId)
+
     return this.prisma.user.findMany({
       where: { organizationId: orgId },
       include: { staffIn: { include: { shop: true } } }

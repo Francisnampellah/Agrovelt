@@ -221,10 +221,22 @@ test('listOrgUsers includes each user shop assignment and manager access', async
   fixture.shopStaff.push({ shopId: 'shop-1', userId: 'staff-1', role: 'STAFF' })
   const service = new OrgUsersService(fixture.prisma as never)
 
-  const users = await service.listOrgUsers('org-1')
+  const users = await service.listOrgUsers(owner, 'org-1')
 
   assert.equal(users[0]!.managerAccess, null)
   assert.equal(users[0]!.staffIn[0]!.shop.id, 'shop-1')
+})
+
+test('listOrgUsers rejects actors without user-management permission', async () => {
+  const fixture = createPrismaFixture()
+  const service = new OrgUsersService(fixture.prisma as never)
+
+  for (const actor of [
+    { userId: 'staff-1', role: 'STAFF' as const, organizationId: 'org-1' },
+    { userId: 'manager-1', role: 'MANAGER' as const, organizationId: 'org-1', managerAccess: 'ALL_SHOPS' as const }
+  ]) {
+    await assert.rejects(service.listOrgUsers(actor, 'org-1'), /Insufficient permissions|User management/)
+  }
 })
 
 test('deactivateOrgUser marks the organization user inactive', async () => {
