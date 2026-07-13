@@ -1,5 +1,9 @@
 import { Response } from 'express'
+import { PrismaClient } from '@prisma/client'
 import { body, query, validationResult } from 'express-validator'
+import { loadAuthActor } from '../auth/assertActor'
+import { canRefund, canSell } from '../auth/permissions'
+import { assertShopInScope } from '../auth/shopScope'
 import { AuthenticatedRequest } from '../auth/types'
 import { NotificationService } from '../notifications/notification.service'
 import { SaleCreationConflictError, SaleService } from './sale.service'
@@ -8,7 +12,8 @@ import { CreateSaleRequest } from './types'
 export class SaleController {
   constructor(
     private saleService: SaleService,
-    private notificationService: NotificationService
+    private notificationService: NotificationService,
+    private prisma: PrismaClient
   ) {}
 
   createValidation = [
@@ -43,6 +48,10 @@ export class SaleController {
         return res.status(401).json({ error: 'Authentication required' })
       }
 
+      const actor = await loadAuthActor(this.prisma, req)
+      await assertShopInScope(this.prisma, actor, String(req.body.shopId))
+      if (!canSell(actor, true)) throw new Error('Insufficient permissions to create sales')
+
       const payload: CreateSaleRequest = {
         ...req.body,
         createdBy: req.user.userId
@@ -68,7 +77,9 @@ export class SaleController {
 
       res.status(201).json({ data: sale, receipt: sale.receipt, notification })
     } catch (error: any) {
-      const statusCode = error instanceof SaleCreationConflictError ? error.statusCode : 400
+      const statusCode = error instanceof SaleCreationConflictError
+        ? error.statusCode
+        : this.errorStatus(error)
       res.status(statusCode).json({ error: error.message })
     }
   }
@@ -79,19 +90,28 @@ export class SaleController {
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
       const shopId = String(req.query.shopId)
+      const actor = await loadAuthActor(this.prisma, req)
+      await assertShopInScope(this.prisma, actor, shopId)
+      if (!canSell(actor, true)) throw new Error('Insufficient permissions to view sales')
+
       const sales = await this.saleService.getSalesByShop(shopId)
       res.json({ data: sales })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
   getById = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const sale = await this.saleService.getSaleById(String(req.params.saleId))
+      const actor = await loadAuthActor(this.prisma, req)
+      await assertShopInScope(this.prisma, actor, sale.shopId)
+      if (!canSell(actor, true)) throw new Error('Insufficient permissions to view sales')
+
       res.json({ data: sale })
     } catch (error: any) {
-      res.status(error.message === 'Sale not found' ? 404 : 400).json({ error: error.message })
+      const statusCode = error.message === 'Sale not found' ? 404 : this.errorStatus(error)
+      res.status(statusCode).json({ error: error.message })
     }
   }
 
@@ -100,6 +120,11 @@ export class SaleController {
       if (!req.user) {
         return res.status(401).json({ error: 'Authentication required' })
       }
+
+      const actor = await loadAuthActor(this.prisma, req)
+      const existingSale = await this.saleService.getSaleById(String(req.params.saleId))
+      await assertShopInScope(this.prisma, actor, existingSale.shopId)
+      if (!canRefund(actor, true)) throw new Error('Insufficient permissions to refund sales')
 
       const refundedBy = req.body.refundedBy || req.user.userId
       const sale = await this.saleService.refundSale(String(req.params.saleId), refundedBy)
@@ -122,7 +147,12 @@ export class SaleController {
 
       res.json({ message: 'Sale refunded successfully', data: sale, receipt: sale.receipt, notification })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
+  }
+
+  private errorStatus(error: unknown): number {
+    const message = error instanceof Error ? error.message : ''
+    return message.includes('Access denied') || message.includes('Insufficient permissions') ? 403 : 400
   }
 }

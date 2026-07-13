@@ -64,7 +64,7 @@ export function getSwaggerConfig(port: number | string) {
               id: { type: 'string', format: 'uuid' },
               name: { type: 'string' },
               email: { type: 'string', format: 'email' },
-              role: { type: 'string', enum: ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'STAFF'] },
+              role: { type: 'string', enum: ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'MANAGER', 'STAFF'] },
               organizationId: { type: 'string', format: 'uuid', nullable: true, description: 'Null for SUPER_ADMIN users' },
               isActive: { type: 'boolean' },
               createdAt: { type: 'string', format: 'date-time' }

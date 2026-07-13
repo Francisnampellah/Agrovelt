@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator'
 import { ShopService } from './shop.service'
 import { CreateShopRequest, UpdateShopRequest } from './types'
 import { AuthenticatedRequest } from '../auth/types'
+import { resolveShopScope } from '../auth/shopScope'
 
 export class ShopController {
   constructor(private shopService: ShopService) {}
@@ -72,6 +73,13 @@ export class ShopController {
       }
 
       const shops = await this.shopService.getAllShops(organizationId)
+      if (user && (user.role === 'STAFF' || user.role === 'MANAGER')) {
+        const scope = await resolveShopScope((this.shopService as any).prisma, user)
+        if (!scope.allShops) {
+          return res.json({ data: shops.filter(shop => scope.shopIds.includes(shop.id)) })
+        }
+      }
+
       res.json({ data: shops })
     } catch (error: any) {
       res.status(500).json({ error: error.message })

@@ -26,8 +26,9 @@
  *                 type: string
  *               role:
  *                 type: string
- *                 enum: [ADMIN, OWNER, STAFF]
- *                 default: STAFF
+ *                 enum: [SUPER_ADMIN, ADMIN, OWNER]
+ *                 default: OWNER
+ *                 description: STAFF and MANAGER must use POST /api/organizations/{id}/users
  *     responses:
  *       201:
  *         description: User registered successfully

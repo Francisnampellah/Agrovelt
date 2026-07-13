@@ -17,7 +17,8 @@ export class AuthController {
       }
       return true
     }).optional({ nullable: true }).isUUID().withMessage('Valid organization ID required if provided'),
-    body('role').optional().isIn(['SUPER_ADMIN', 'ADMIN', 'OWNER', 'STAFF']).withMessage('Invalid role')
+    body('role').optional().isIn(['SUPER_ADMIN', 'ADMIN', 'OWNER']).withMessage('Invalid role'),
+    body('shopId').optional({ nullable: true }).isUUID().withMessage('Valid shop ID required if provided')
   ]
 
   loginValidation = [

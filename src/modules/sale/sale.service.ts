@@ -206,9 +206,14 @@ export class SaleService {
     })
   }
 
-  async getSalesByOrganization(organizationId: string) {
+  async getSalesByOrganization(organizationId: string, shopIds?: string[]) {
     return this.prisma.sale.findMany({
-      where: { shop: { organizationId } },
+      where: {
+        shop: {
+          organizationId,
+          ...(shopIds ? { id: { in: shopIds } } : {})
+        }
+      },
       include: {
         shop: { select: { id: true, name: true } },
         items: { include: { variant: { include: { product: true } } } },
