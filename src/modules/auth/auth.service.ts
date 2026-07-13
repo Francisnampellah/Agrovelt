@@ -48,7 +48,11 @@ export class AuthService {
   }
 
   async register(data: RegisterRequest): Promise<AuthResponse> {
-    const { name, email, password, role = Role.STAFF, organizationId } = data
+    const { name, email, password, role = Role.OWNER, organizationId } = data
+
+    if (role === Role.STAFF || role === Role.MANAGER) {
+      throw new Error('STAFF and MANAGER must be created via POST /api/organizations/{id}/users')
+    }
 
     // Check if user already exists
     const existingUser = await this.prisma.user.findUnique({

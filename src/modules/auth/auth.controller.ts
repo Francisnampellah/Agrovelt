@@ -17,14 +17,8 @@ export class AuthController {
       }
       return true
     }).optional({ nullable: true }).isUUID().withMessage('Valid organization ID required if provided'),
-    body('role').optional().isIn(['SUPER_ADMIN', 'ADMIN', 'OWNER', 'STAFF']).withMessage('Invalid role'),
-    body('shopId').custom((value, { req }) => {
-      const role = req.body.role ?? 'STAFF'
-      if (role === 'STAFF' && !value) {
-        throw new Error('STAFF users require shopId; use POST /api/organizations/{id}/users instead')
-      }
-      return true
-    }).optional({ nullable: true }).isUUID().withMessage('Valid shop ID required if provided')
+    body('role').optional().isIn(['SUPER_ADMIN', 'ADMIN', 'OWNER']).withMessage('Invalid role'),
+    body('shopId').optional({ nullable: true }).isUUID().withMessage('Valid shop ID required if provided')
   ]
 
   loginValidation = [
