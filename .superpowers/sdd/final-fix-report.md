@@ -67,3 +67,18 @@
 ℹ todo 0
 ℹ duration_ms 33897.6473
 ```
+
+## Shop-scoped operational read authorization
+
+- Enforced actor loading, shop scope checks, and operation permissions on sale list/detail, expense list, purchase list, and inventory/transaction-by-shop reads.
+- Kept `Access denied` and `Insufficient permissions` responses mapped to HTTP 403 through each controller's error-status helper.
+- Added regression coverage proving a STAFF user cannot list sales for an unassigned shop.
+
+## Test output
+
+```text
+> npm test
+✔ tests 46
+ℹ pass 46
+ℹ fail 0
+```

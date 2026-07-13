@@ -2,7 +2,7 @@ import { Response } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { body, query, validationResult } from 'express-validator'
 import { loadAuthActor } from '../auth/assertActor'
-import { canPurchase } from '../auth/permissions'
+import { canPurchase, canViewShopFinance } from '../auth/permissions'
 import { assertShopInScope } from '../auth/shopScope'
 import { AuthenticatedRequest } from '../auth/types'
 import { NotificationService } from '../notifications/notification.service'
@@ -75,10 +75,15 @@ export class PurchaseController {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
-      const purchases = await this.purchaseService.getPurchasesByShop(String(req.query.shopId))
+      const shopId = String(req.query.shopId)
+      const actor = await loadAuthActor(this.prisma, req)
+      await assertShopInScope(this.prisma, actor, shopId)
+      if (!canViewShopFinance(actor, true)) throw new Error('Insufficient permissions to view purchases')
+
+      const purchases = await this.purchaseService.getPurchasesByShop(shopId)
       res.json({ data: purchases })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 

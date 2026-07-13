@@ -90,19 +90,28 @@ export class SaleController {
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
       const shopId = String(req.query.shopId)
+      const actor = await loadAuthActor(this.prisma, req)
+      await assertShopInScope(this.prisma, actor, shopId)
+      if (!canSell(actor, true)) throw new Error('Insufficient permissions to view sales')
+
       const sales = await this.saleService.getSalesByShop(shopId)
       res.json({ data: sales })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
   getById = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const sale = await this.saleService.getSaleById(String(req.params.saleId))
+      const actor = await loadAuthActor(this.prisma, req)
+      await assertShopInScope(this.prisma, actor, sale.shopId)
+      if (!canSell(actor, true)) throw new Error('Insufficient permissions to view sales')
+
       res.json({ data: sale })
     } catch (error: any) {
-      res.status(error.message === 'Sale not found' ? 404 : 400).json({ error: error.message })
+      const statusCode = error.message === 'Sale not found' ? 404 : this.errorStatus(error)
+      res.status(statusCode).json({ error: error.message })
     }
   }
 

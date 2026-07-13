@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import { Request, Response } from 'express'
 import { body, validationResult } from 'express-validator'
 import { loadAuthActor } from '../auth/assertActor'
-import { canAddStock } from '../auth/permissions'
+import { canAddStock, canViewShopFinance } from '../auth/permissions'
 import { assertShopInScope } from '../auth/shopScope'
 import { AuthenticatedRequest } from '../auth/types'
 import { InventoryService } from './inventory.service'
@@ -58,23 +58,25 @@ export class InventoryController {
     }
   }
 
-  getByShop = async (req: Request, res: Response) => {
+  getByShop = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const shopId = String(req.params.shopId)
+      await this.assertInventoryReadAccess(req, shopId)
       const inventory = await this.inventoryService.getInventoryByShop(shopId)
       res.json({ data: inventory })
     } catch (error: any) {
-      res.status(500).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
-  getTransactionsByShop = async (req: Request, res: Response) => {
+  getTransactionsByShop = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const shopId = String(req.params.shopId)
+      await this.assertInventoryReadAccess(req, shopId)
       const transactions = await this.inventoryService.getTransactionsByShop(shopId)
       res.json({ data: transactions })
     } catch (error: any) {
-      res.status(500).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
@@ -169,6 +171,12 @@ export class InventoryController {
     for (const shopId of new Set(shopIds.filter((value): value is string => Boolean(value)))) {
       await assertShopInScope(this.prisma, actor, shopId)
     }
+  }
+
+  private async assertInventoryReadAccess(req: AuthenticatedRequest, shopId: string): Promise<void> {
+    const actor = await loadAuthActor(this.prisma, req)
+    await assertShopInScope(this.prisma, actor, shopId)
+    if (!canViewShopFinance(actor, true)) throw new Error('Insufficient permissions to view inventory')
   }
 
   private errorStatus(error: unknown): number {
