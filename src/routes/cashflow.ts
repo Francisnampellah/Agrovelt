@@ -1,9 +1,9 @@
 import { Router, Response } from 'express'
 import { PrismaClient, CashFlowCategory } from '@prisma/client'
-import { query, validationResult } from 'express-validator'
+import { body, query, validationResult } from 'express-validator'
 import { AuthMiddleware, AuthService } from '../modules/auth'
 import { loadAuthActor } from '../modules/auth/assertActor'
-import { canViewShopFinance } from '../modules/auth/permissions'
+import { canAddOrgFunding, canViewShopFinance } from '../modules/auth/permissions'
 import { assertShopInScope } from '../modules/auth/shopScope'
 import { AuthenticatedRequest } from '../modules/auth/types'
 import { CashFlowService } from '../modules/cashflow/cashflow.service'
@@ -18,6 +18,39 @@ export function createCashFlowRoutes(prisma: PrismaClient) {
   const router = Router()
   const authMiddleware = new AuthMiddleware(new AuthService(prisma))
   const cashFlowService = new CashFlowService(prisma)
+
+  router.post(
+    '/cashflow/funding',
+    authMiddleware.authenticate,
+    [
+      body('shopId').isUUID().withMessage('Valid shop ID is required'),
+      body('amount').isFloat({ gt: 0 }).withMessage('Amount must be a positive number'),
+      body('note').optional().isString()
+    ],
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+        const actor = await loadAuthActor(prisma, req)
+        if (!canAddOrgFunding(actor)) {
+          return res.status(403).json({ error: 'Insufficient permissions to record organization funding' })
+        }
+        await assertShopInScope(prisma, actor, String(req.body.shopId))
+
+        const entry = await cashFlowService.recordFunding(
+          String(req.body.shopId),
+          Number(req.body.amount),
+          actor.userId,
+          req.body.note
+        )
+        res.status(201).json({ data: entry })
+      } catch (error: any) {
+        const status = error.message?.includes('Access denied') ? 403 : 400
+        res.status(status).json({ error: error.message })
+      }
+    }
+  )
 
   router.get(
     '/cashflow/summary',
