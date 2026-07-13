@@ -186,6 +186,26 @@ export class OrganizationController {
     return [shopId]
   }
 
+  private parseDateRange(req: AuthenticatedRequest) {
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date()
+    return { from, to }
+  }
+
+  private parseShopIds(req: AuthenticatedRequest) {
+    const raw = req.query.shopIds ? String(req.query.shopIds) : undefined
+    if (!raw) return undefined
+    return raw.split(',').map(s => s.trim()).filter(Boolean)
+  }
+
+  private assertOrgManager(req: AuthenticatedRequest) {
+    if (!req.user) throw Object.assign(new Error('Authentication required'), { status: 401 })
+    const allowed: Role[] = ['OWNER', 'ADMIN', 'SUPER_ADMIN']
+    if (!allowed.includes(req.user.role as Role)) {
+      throw Object.assign(new Error('Insufficient permissions to manage organization users'), { status: 403 })
+    }
+  }
+
   getSales = async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.user) {

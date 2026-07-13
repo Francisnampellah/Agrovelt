@@ -22,6 +22,7 @@ export interface OrganizationModuleDeps {
   notificationService: NotificationService
   inventoryService: InventoryService
   shopService: ShopService
+  cashFlowService?: CashFlowService
 }
 
 export function createOrganizationModule(
@@ -32,11 +33,14 @@ export function createOrganizationModule(
   const organizationService = new OrganizationService(prisma)
   const orgUsersService = new OrgUsersService(prisma)
 
-  const services = deps ?? {
+  const defaultServices = {
     ...createNotificationModule(prisma),
     ...createInventoryModule(prisma),
-    ...createShopModule(prisma)
+    ...createShopModule(prisma),
+    cashFlowService: new CashFlowService(prisma)
   }
+
+  const services = deps ? { ...defaultServices, ...deps } : defaultServices
 
   const organizationController = new OrganizationController(
     organizationService,
@@ -48,7 +52,7 @@ export function createOrganizationModule(
     services.notificationService,
     services.inventoryService,
     services.shopService,
-    cashFlowService
+    services.cashFlowService
   )
   const orgUsersController = new OrgUsersController(orgUsersService, prisma)
 
