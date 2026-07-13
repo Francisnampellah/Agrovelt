@@ -133,9 +133,12 @@ export function createOrganizationRoutes(
     organizationController.getStock
   )
 
+  const canManageOrgUsers = authMiddleware.authorize('OWNER', 'ADMIN', 'SUPER_ADMIN')
+
   router.post(
     '/organizations/:id/users',
     authMiddleware.authenticate,
+    canManageOrgUsers,
     orgUsersController.createValidation,
     orgUsersController.create
   )
@@ -143,12 +146,14 @@ export function createOrganizationRoutes(
   router.get(
     '/organizations/:id/users',
     authMiddleware.authenticate,
+    canManageOrgUsers,
     orgUsersController.list
   )
 
   router.patch(
     '/organizations/:id/users/:userId',
     authMiddleware.authenticate,
+    canManageOrgUsers,
     orgUsersController.updateValidation,
     orgUsersController.update
   )
@@ -156,6 +161,7 @@ export function createOrganizationRoutes(
   router.post(
     '/organizations/:id/users/:userId/deactivate',
     authMiddleware.authenticate,
+    canManageOrgUsers,
     orgUsersController.deactivate
   )
 

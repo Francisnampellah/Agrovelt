@@ -27,7 +27,7 @@ export class OrgUsersService {
   constructor(private prisma: PrismaClient) {}
 
   async createOrgUser(actor: AuthActor, orgId: string, input: CreateOrgUserInput) {
-    this.assertCanManageUsers(actor, orgId)
+    await this.assertCanManageUsers(actor, orgId)
     this.validateAssignment(input.role, input.managerAccess, input.shopId)
     await this.validateShop(orgId, input.shopId)
 
@@ -67,7 +67,7 @@ export class OrgUsersService {
   }
 
   async listOrgUsers(actor: AuthActor, orgId: string) {
-    this.assertCanManageUsers(actor, orgId)
+    await this.assertCanManageUsers(actor, orgId)
 
     return this.prisma.user.findMany({
       where: { organizationId: orgId },
@@ -76,7 +76,7 @@ export class OrgUsersService {
   }
 
   async updateOrgUser(actor: AuthActor, orgId: string, userId: string, input: UpdateOrgUserInput) {
-    this.assertCanManageUsers(actor, orgId)
+    await this.assertCanManageUsers(actor, orgId)
 
     const existing = await this.prisma.user.findFirst({
       where: { id: userId, organizationId: orgId },
@@ -134,7 +134,7 @@ export class OrgUsersService {
   }
 
   async deactivateOrgUser(actor: AuthActor, orgId: string, userId: string) {
-    this.assertCanManageUsers(actor, orgId)
+    await this.assertCanManageUsers(actor, orgId)
 
     const existing = await this.prisma.user.findFirst({
       where: { id: userId, organizationId: orgId }
@@ -148,12 +148,20 @@ export class OrgUsersService {
     })
   }
 
-  private assertCanManageUsers(actor: AuthActor, orgId: string): void {
+  private async assertCanManageUsers(actor: AuthActor, orgId: string): Promise<void> {
     if (!canManageUsers(actor)) {
       throw new Error('Insufficient permissions for user management')
     }
     if (actor.role === 'OWNER' && actor.organizationId !== orgId) {
       throw new Error('Access denied to this organization')
+    }
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true }
+    })
+    if (!org) {
+      throw new Error('Organization not found')
     }
   }
 

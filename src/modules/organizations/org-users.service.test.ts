@@ -105,6 +105,12 @@ function createPrismaFixture(shoppingOrganizationId = 'org-1') {
     users,
     shopStaff,
     prisma: {
+      organization: {
+        findUnique: async ({ where }: any) =>
+          where.id === 'org-1' || where.id === shoppingOrganizationId
+            ? { id: where.id }
+            : null
+      },
       shop: {
         findFirst: async ({ where }: any) =>
           shops.find(shop => shop.id === where.id && shop.organizationId === where.organizationId) ?? null
@@ -206,6 +212,58 @@ test('createOrgUser rejects actors without user-management permission', async ()
   await assert.rejects(
     service.createOrgUser({ userId: 'staff-1', role: 'STAFF', organizationId: 'org-1' }, 'org-1', staffInput),
     /Insufficient permissions|User management/
+  )
+
+  await assert.rejects(
+    service.createOrgUser(
+      { userId: 'manager-1', role: 'MANAGER', organizationId: 'org-1', managerAccess: 'ALL_SHOPS' },
+      'org-1',
+      staffInput
+    ),
+    /Insufficient permissions|User management/
+  )
+})
+
+test('createOrgUser allows ADMIN and SUPER_ADMIN to register STAFF for an organization shop', async () => {
+  const fixture = createPrismaFixture()
+  const service = new OrgUsersService(fixture.prisma as never)
+
+  const adminUser = await service.createOrgUser(
+    { userId: 'admin-1', role: 'ADMIN' },
+    'org-1',
+    { ...staffInput, email: 'admin-created-staff@example.com' }
+  )
+  assert.equal(adminUser.role, 'STAFF')
+  assert.equal(adminUser.organizationId, 'org-1')
+  assert.equal(fixture.shopStaff.some(row => row.userId === adminUser.id && row.shopId === 'shop-1'), true)
+
+  const superAdminUser = await service.createOrgUser(
+    { userId: 'super-1', role: 'SUPER_ADMIN' },
+    'org-1',
+    {
+      name: 'Manager User',
+      email: 'super-created-manager@example.com',
+      password: 'password1',
+      role: 'MANAGER',
+      managerAccess: 'ONE_SHOP',
+      shopId: 'shop-1'
+    }
+  )
+  assert.equal(superAdminUser.role, 'MANAGER')
+  assert.equal(superAdminUser.managerAccess, 'ONE_SHOP')
+})
+
+test('createOrgUser rejects OWNER from a different organization', async () => {
+  const fixture = createPrismaFixture()
+  const service = new OrgUsersService(fixture.prisma as never)
+
+  await assert.rejects(
+    service.createOrgUser(
+      { userId: 'owner-2', role: 'OWNER', organizationId: 'org-2' },
+      'org-1',
+      staffInput
+    ),
+    /Access denied to this organization/
   )
 })
 
