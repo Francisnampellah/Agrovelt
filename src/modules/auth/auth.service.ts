@@ -9,6 +9,7 @@ import {
   resolveExchangeGlobalRole,
   validateFirestoreAgrovetRole
 } from './firebaseRoleMapping'
+import { resolveShopScope } from './shopScope'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m'
@@ -33,6 +34,10 @@ function parseExpiresInSeconds(value: string): number {
     default:
       return amount
   }
+}
+
+export function shouldPreserveLocalRole(localRole: string): boolean {
+  return localRole === 'STAFF' || localRole === 'MANAGER'
 }
 
 export class AuthService {
@@ -286,18 +291,22 @@ export class AuthService {
         })
       } else if (user.firebaseUid && user.firebaseUid !== uid) {
         throw new Error('Email is already linked to a different Firebase account')
-      } else if (!user.firebaseUid || user.role !== localRole) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            firebaseUid: user.firebaseUid || uid,
-            role: localRole
-          },
-          include: {
-            shopsOwned: { select: { id: true } },
-            staffIn: { select: { shopId: true } }
-          }
-        })
+      } else {
+        const updateData: { firebaseUid?: string; role?: Role } = {}
+        if (!user.firebaseUid) updateData.firebaseUid = uid
+        if (!shouldPreserveLocalRole(user.role) && user.role !== localRole) {
+          updateData.role = localRole
+        }
+        if (Object.keys(updateData).length > 0) {
+          user = await this.prisma.user.update({
+            where: { id: user.id },
+            data: updateData,
+            include: {
+              shopsOwned: { select: { id: true } },
+              staffIn: { select: { shopId: true } }
+            }
+          })
+        }
       }
 
       if (!user.isActive) {
@@ -305,10 +314,12 @@ export class AuthService {
       }
 
       // 5. Resolve shop scope
-      const shopScope = [
-        ...user.shopsOwned.map(s => s.id),
-        ...user.staffIn.map(s => s.shopId)
-      ]
+      const shopScope = await resolveShopScope(this.prisma, {
+        userId: user.id,
+        role: user.role,
+        organizationId: user.organizationId,
+        managerAccess: user.managerAccess
+      })
 
       // 6. Issue backend tokens
       const accessToken = this.generateToken({
@@ -340,7 +351,10 @@ export class AuthService {
           role: user.role,
           organizationId: user.organizationId,
           isActive: user.isActive,
-          shopScope
+          managerAccess: user.managerAccess,
+          allShops: shopScope.allShops,
+          shopScope: shopScope.shopIds,
+          shops: shopScope.shops
         }
       }
     } catch (error: any) {
@@ -358,6 +372,7 @@ export class AuthService {
         email: true,
         role: true,
         organizationId: true,
+        managerAccess: true,
         isActive: true,
         createdAt: true,
         shopsOwned: {
@@ -386,7 +401,19 @@ export class AuthService {
       throw new Error('User not found')
     }
 
-    return user
+    const shopScope = await resolveShopScope(this.prisma, {
+      userId: user.id,
+      role: user.role,
+      organizationId: user.organizationId,
+      managerAccess: user.managerAccess
+    })
+
+    return {
+      ...user,
+      allShops: shopScope.allShops,
+      shopScope: shopScope.shopIds,
+      shops: shopScope.shops
+    }
   }
 
   async updateProfile(userId: string, data: { name?: string; email?: string }) {
