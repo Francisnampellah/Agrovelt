@@ -1,5 +1,10 @@
+import { PrismaClient } from '@prisma/client'
 import { Request, Response } from 'express'
 import { body, validationResult } from 'express-validator'
+import { loadAuthActor } from '../auth/assertActor'
+import { canAddStock } from '../auth/permissions'
+import { assertShopInScope } from '../auth/shopScope'
+import { AuthenticatedRequest } from '../auth/types'
 import { InventoryService } from './inventory.service'
 import { BulkInventoryService } from './bulk-inventory.service'
 import { parseExcelFile } from '../../utils/excelParser'
@@ -8,7 +13,8 @@ import { generateInventoryUpdateTemplate, generateInventoryAdjustTemplate, saveT
 export class InventoryController {
   constructor(
     private inventoryService: InventoryService,
-    private bulkInventoryService: BulkInventoryService
+    private bulkInventoryService: BulkInventoryService,
+    private prisma: PrismaClient
   ) {}
 
   updateValidation = [
@@ -26,27 +32,29 @@ export class InventoryController {
     body('referenceId').optional().isString()
   ]
 
-  update = async (req: Request, res: Response) => {
+  update = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
+      await this.assertStockAccess(req, [String(req.body.shopId)])
       const inventory = await this.inventoryService.updateInventory(req.body)
       res.json({ data: inventory })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
-  adjust = async (req: Request, res: Response) => {
+  adjust = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
+      await this.assertStockAccess(req, [String(req.body.shopId)])
       const inventory = await this.inventoryService.adjustInventory(req.body)
       res.json({ data: inventory })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
@@ -70,7 +78,7 @@ export class InventoryController {
     }
   }
 
-  bulkUpdateInventory = async (req: Request, res: Response) => {
+  bulkUpdateInventory = async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!(req as any).file) {
         return res.status(400).json({ error: 'No Excel file provided' })
@@ -78,11 +86,8 @@ export class InventoryController {
 
       const dryRun = String(req.query.dryRun) === 'true'
       const rows = await parseExcelFile((req as any).file.path)
-      const user = (req as any).user
-
-      if (!user) {
-        return res.status(401).json({ error: 'User authentication required' })
-      }
+      await this.assertStockAccess(req, rows.map((row: { shopId?: string }) => row.shopId).filter(Boolean))
+      const user = req.user!
       
       // Clean up uploaded file
       const fs = await import('fs').then(m => m.promises)
@@ -98,11 +103,11 @@ export class InventoryController {
         const fs = await import('fs').then(m => m.promises)
         await fs.unlink((req as any).file.path).catch(() => {})
       }
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
-  bulkAdjustInventory = async (req: Request, res: Response) => {
+  bulkAdjustInventory = async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!(req as any).file) {
         return res.status(400).json({ error: 'No Excel file provided' })
@@ -110,11 +115,8 @@ export class InventoryController {
 
       const dryRun = String(req.query.dryRun) === 'true'
       const rows = await parseExcelFile((req as any).file.path)
-      const user = (req as any).user
-
-      if (!user) {
-        return res.status(401).json({ error: 'User authentication required' })
-      }
+      await this.assertStockAccess(req, rows.map((row: { shopId?: string }) => row.shopId).filter(Boolean))
+      const user = req.user!
       
       // Clean up uploaded file
       const fs = await import('fs').then(m => m.promises)
@@ -130,7 +132,7 @@ export class InventoryController {
         const fs = await import('fs').then(m => m.promises)
         await fs.unlink((req as any).file.path).catch(() => {})
       }
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
@@ -158,5 +160,19 @@ export class InventoryController {
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
+  }
+
+  private async assertStockAccess(req: AuthenticatedRequest, shopIds: (string | undefined)[]): Promise<void> {
+    const actor = await loadAuthActor(this.prisma, req)
+    if (!canAddStock(actor, true)) throw new Error('Insufficient permissions to modify inventory')
+
+    for (const shopId of new Set(shopIds.filter((value): value is string => Boolean(value)))) {
+      await assertShopInScope(this.prisma, actor, shopId)
+    }
+  }
+
+  private errorStatus(error: unknown): number {
+    const message = error instanceof Error ? error.message : ''
+    return message.includes('Access denied') || message.includes('Insufficient permissions') ? 403 : 400
   }
 }

@@ -1,5 +1,9 @@
 import { Response } from 'express'
+import { PrismaClient } from '@prisma/client'
 import { body, query, validationResult } from 'express-validator'
+import { loadAuthActor } from '../auth/assertActor'
+import { canPurchase } from '../auth/permissions'
+import { assertShopInScope } from '../auth/shopScope'
 import { AuthenticatedRequest } from '../auth/types'
 import { NotificationService } from '../notifications/notification.service'
 import { PurchaseService } from './purchase.service'
@@ -7,7 +11,8 @@ import { PurchaseService } from './purchase.service'
 export class PurchaseController {
   constructor(
     private purchaseService: PurchaseService,
-    private notificationService: NotificationService
+    private notificationService: NotificationService,
+    private prisma: PrismaClient
   ) {}
 
   createValidation = [
@@ -34,6 +39,10 @@ export class PurchaseController {
         return res.status(401).json({ error: 'Authentication required' })
       }
 
+      const actor = await loadAuthActor(this.prisma, req)
+      await assertShopInScope(this.prisma, actor, String(req.body.shopId))
+      if (!canPurchase(actor, true)) throw new Error('Insufficient permissions to create purchases')
+
       const items = req.body.items.map((item: any) => ({
         ...item,
         ...(item.expiryDate ? { expiryDate: new Date(item.expiryDate) } : {})
@@ -57,7 +66,7 @@ export class PurchaseController {
 
       res.status(201).json({ data: purchase, notification })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      res.status(this.errorStatus(error)).json({ error: error.message })
     }
   }
 
@@ -71,5 +80,10 @@ export class PurchaseController {
     } catch (error: any) {
       res.status(400).json({ error: error.message })
     }
+  }
+
+  private errorStatus(error: unknown): number {
+    const message = error instanceof Error ? error.message : ''
+    return message.includes('Access denied') || message.includes('Insufficient permissions') ? 403 : 400
   }
 }

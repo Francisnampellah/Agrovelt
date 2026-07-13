@@ -27,7 +27,7 @@ export function createSaleModule(
   const notifications =
     notificationService ?? createNotificationModule(prisma).notificationService
 
-  const saleController = new SaleController(saleService, notifications)
+  const saleController = new SaleController(saleService, notifications, prisma)
 
   return {
     saleService,

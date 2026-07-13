@@ -6,7 +6,7 @@ import { BulkInventoryService } from './bulk-inventory.service'
 export function createInventoryModule(prisma: PrismaClient) {
   const inventoryService = new InventoryService(prisma)
   const bulkInventoryService = new BulkInventoryService(prisma, inventoryService)
-  const inventoryController = new InventoryController(inventoryService, bulkInventoryService)
+  const inventoryController = new InventoryController(inventoryService, bulkInventoryService, prisma)
 
   return {
     inventoryService,

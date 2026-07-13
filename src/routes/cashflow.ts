@@ -2,6 +2,9 @@ import { Router, Response } from 'express'
 import { PrismaClient, CashFlowCategory } from '@prisma/client'
 import { query, validationResult } from 'express-validator'
 import { AuthMiddleware, AuthService } from '../modules/auth'
+import { loadAuthActor } from '../modules/auth/assertActor'
+import { canViewShopFinance } from '../modules/auth/permissions'
+import { assertShopInScope } from '../modules/auth/shopScope'
 import { AuthenticatedRequest } from '../modules/auth/types'
 import { CashFlowService } from '../modules/cashflow/cashflow.service'
 
@@ -29,13 +32,20 @@ export function createCashFlowRoutes(prisma: PrismaClient) {
         const errors = validationResult(req)
         if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
+        const actor = await loadAuthActor(prisma, req)
+        await assertShopInScope(prisma, actor, String(req.query.shopId))
+        if (!canViewShopFinance(actor, true)) {
+          return res.status(403).json({ error: 'Insufficient permissions to view shop finance' })
+        }
+
         const from = parseDate(req.query.from, new Date(0))
         const to = parseDate(req.query.to, new Date())
         const summary = await cashFlowService.getSummary(String(req.query.shopId), from, to)
 
         res.json({ data: summary })
       } catch (error: any) {
-        res.status(400).json({ error: error.message })
+        const status = error.message?.includes('Access denied') ? 403 : 400
+        res.status(status).json({ error: error.message })
       }
     }
   )
@@ -56,6 +66,12 @@ export function createCashFlowRoutes(prisma: PrismaClient) {
         const errors = validationResult(req)
         if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
+        const actor = await loadAuthActor(prisma, req)
+        await assertShopInScope(prisma, actor, String(req.query.shopId))
+        if (!canViewShopFinance(actor, true)) {
+          return res.status(403).json({ error: 'Insufficient permissions to view shop finance' })
+        }
+
         const filters: Parameters<CashFlowService['getEntries']>[1] = {}
         if (req.query.direction) filters.direction = req.query.direction as 'IN' | 'OUT'
         if (req.query.category) filters.category = req.query.category as CashFlowCategory
@@ -68,7 +84,8 @@ export function createCashFlowRoutes(prisma: PrismaClient) {
 
         res.json({ data: entries })
       } catch (error: any) {
-        res.status(400).json({ error: error.message })
+        const status = error.message?.includes('Access denied') ? 403 : 400
+        res.status(status).json({ error: error.message })
       }
     }
   )
