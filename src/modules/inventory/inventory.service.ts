@@ -383,9 +383,14 @@ export class InventoryService {
     })
   }
 
-  async getInventoryByOrganization(organizationId: string) {
+  async getInventoryByOrganization(organizationId: string, shopIds?: string[]) {
     return this.prisma.inventory.findMany({
-      where: { shop: { organizationId } },
+      where: {
+        shop: {
+          organizationId,
+          ...(shopIds ? { id: { in: shopIds } } : {})
+        }
+      },
       include: {
         shop: { select: { id: true, name: true, type: true, location: true } },
         variant: { include: { product: true } }
@@ -396,14 +401,15 @@ export class InventoryService {
 
   async getTransactionsByOrganization(
     organizationId: string,
-    filters: { shopId?: string; cursor?: string; take?: number } = {}
+    filters: { shopId?: string; shopIds?: string[]; cursor?: string; take?: number } = {}
   ) {
-    const { shopId, cursor, take = 50 } = filters
+    const { shopId, shopIds, cursor, take = 50 } = filters
 
     return this.prisma.inventoryTransaction.findMany({
       where: {
         shop: { organizationId },
-        ...(shopId ? { shopId } : {})
+        ...(shopId ? { shopId } : {}),
+        ...(shopIds ? { shopId: { in: shopIds } } : {})
       },
       take,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -415,8 +421,12 @@ export class InventoryService {
     })
   }
 
-  async getStockSummaryByOrganization(organizationId: string, lowStockThreshold = 10) {
-    const rows = await this.getInventoryByOrganization(organizationId)
+  async getStockSummaryByOrganization(
+    organizationId: string,
+    lowStockThreshold = 10,
+    shopIds?: string[]
+  ) {
+    const rows = await this.getInventoryByOrganization(organizationId, shopIds)
 
     const byVariantMap = new Map<
       string,

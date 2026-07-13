@@ -52,6 +52,29 @@ test('STAFF scope is exactly assigned shop', async () => {
   assert.deepEqual(scope.shopIds, ['s1'])
 })
 
+test('STAFF scope collapses multiple assignments to the first shop ID', async () => {
+  const prisma = createPrisma({
+    id: 'u1',
+    role: 'STAFF',
+    organizationId: 'org1',
+    managerAccess: null,
+    staffIn: [
+      { shop: { id: 's2', name: 'Branch' } },
+      { shop: { id: 's1', name: 'Main' } }
+    ],
+    shopsOwned: []
+  })
+
+  const scope = await resolveShopScope(prisma as never, {
+    userId: 'u1',
+    role: 'STAFF',
+    organizationId: 'org1'
+  })
+
+  assert.equal(scope.allShops, false)
+  assert.deepEqual(scope.shopIds, ['s1'])
+})
+
 test('ONE_SHOP manager scope is exactly assigned shop', async () => {
   const prisma = createPrisma({
     id: 'u1',

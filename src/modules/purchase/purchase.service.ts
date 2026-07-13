@@ -114,9 +114,14 @@ export class PurchaseService {
     })
   }
 
-  async getPurchasesByOrganization(organizationId: string) {
+  async getPurchasesByOrganization(organizationId: string, shopIds?: string[]) {
     return this.prisma.purchase.findMany({
-      where: { shop: { organizationId } },
+      where: {
+        shop: {
+          organizationId,
+          ...(shopIds ? { id: { in: shopIds } } : {})
+        }
+      },
       include: {
         shop: { select: { id: true, name: true } },
         supplier: true,

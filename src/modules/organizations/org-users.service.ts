@@ -1,10 +1,27 @@
 import bcrypt from 'bcrypt'
-import { ManagerAccess, PrismaClient, Role } from '@prisma/client'
+import { ManagerAccess, Prisma, PrismaClient, Role } from '@prisma/client'
 import { AuthActor, canManageUsers } from '../auth/permissions'
 import { CreateOrgUserInput, UpdateOrgUserInput } from './types'
 
 type UserRole = CreateOrgUserInput['role']
 type Access = NonNullable<CreateOrgUserInput['managerAccess']>
+
+const organizationUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  organizationId: true,
+  managerAccess: true,
+  isActive: true,
+  staffIn: {
+    select: {
+      shopId: true,
+      role: true,
+      shop: { select: { id: true, name: true } }
+    }
+  }
+} satisfies Prisma.UserSelect
 
 export class OrgUsersService {
   constructor(private prisma: PrismaClient) {}
@@ -40,7 +57,12 @@ export class OrgUsersService {
         })
       }
 
-      return user
+      const publicUser = await tx.user.findUnique({
+        where: { id: user.id },
+        select: organizationUserSelect
+      })
+      if (!publicUser) throw new Error('User not found after creation')
+      return publicUser
     })
   }
 
@@ -49,7 +71,7 @@ export class OrgUsersService {
 
     return this.prisma.user.findMany({
       where: { organizationId: orgId },
-      include: { staffIn: { include: { shop: true } } }
+      select: organizationUserSelect
     })
   }
 
@@ -102,7 +124,12 @@ export class OrgUsersService {
         })
       }
 
-      return user
+      const publicUser = await tx.user.findUnique({
+        where: { id: user.id },
+        select: organizationUserSelect
+      })
+      if (!publicUser) throw new Error('User not found after update')
+      return publicUser
     })
   }
 
@@ -116,7 +143,8 @@ export class OrgUsersService {
 
     return this.prisma.user.update({
       where: { id: userId },
-      data: { isActive: false }
+      data: { isActive: false },
+      select: organizationUserSelect
     })
   }
 

@@ -35,6 +35,28 @@ function createPrismaFixture(shoppingOrganizationId = 'org-1') {
         users.push(user)
         return user
       },
+      findUnique: async ({ where, select }: any) => {
+        const user = users.find(candidate => candidate.id === where.id)
+        if (!user) return null
+        if (!select) return user
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          organizationId: user.organizationId,
+          managerAccess: user.managerAccess,
+          isActive: user.isActive,
+          staffIn: shopStaff
+            .filter(assignment => assignment.userId === user.id)
+            .map(assignment => ({
+              shopId: assignment.shopId,
+              role: assignment.role,
+              shop: shops.find(shop => shop.id === assignment.shopId)
+            }))
+        }
+      },
       findFirst: async ({ where }: any) =>
         users.find(user => user.id === where.id && user.organizationId === where.organizationId) ?? null,
       update: async ({ where, data }: any) => {
@@ -43,13 +65,23 @@ function createPrismaFixture(shoppingOrganizationId = 'org-1') {
         Object.assign(user, data)
         return user
       },
-      findMany: async ({ where }: any) =>
+      findMany: async ({ where, select }: any) =>
         users.filter(user => user.organizationId === where.organizationId).map(user => ({
-          ...user,
+          ...(select
+            ? {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                organizationId: user.organizationId,
+                managerAccess: user.managerAccess,
+                isActive: user.isActive
+              }
+            : user),
           staffIn: shopStaff
             .filter(assignment => assignment.userId === user.id)
             .map(assignment => ({
-              ...assignment,
+              ...(select ? { shopId: assignment.shopId, role: assignment.role } : assignment),
               shop: shops.find(shop => shop.id === assignment.shopId)
             }))
         }))
@@ -115,6 +147,8 @@ test('createOrgUser creates STAFF with one ShopStaff assignment and no manager a
 
   assert.equal(user.role, 'STAFF')
   assert.equal(user.managerAccess, null)
+  assert.equal('passwordHash' in user, false)
+  assert.equal(user.staffIn[0]!.shop.id, 'shop-1')
   assert.deepEqual(fixture.shopStaff, [{ shopId: 'shop-1', userId: user.id, role: 'STAFF' }])
 })
 
@@ -197,12 +231,13 @@ test('updateOrgUser removes ShopStaff rows when switching to ALL_SHOPS', async (
   fixture.shopStaff.push({ shopId: 'shop-1', userId: 'manager-1', role: 'MANAGER' })
   const service = new OrgUsersService(fixture.prisma as never)
 
-  await service.updateOrgUser(owner, 'org-1', 'manager-1', {
+  const user = await service.updateOrgUser(owner, 'org-1', 'manager-1', {
     role: 'MANAGER',
     managerAccess: 'ALL_SHOPS'
   })
 
   assert.equal(fixture.users[0]!.managerAccess, 'ALL_SHOPS')
+  assert.equal('passwordHash' in user, false)
   assert.deepEqual(fixture.shopStaff, [])
 })
 
@@ -225,6 +260,7 @@ test('listOrgUsers includes each user shop assignment and manager access', async
 
   assert.equal(users[0]!.managerAccess, null)
   assert.equal(users[0]!.staffIn[0]!.shop.id, 'shop-1')
+  assert.equal('passwordHash' in users[0]!, false)
 })
 
 test('listOrgUsers rejects actors without user-management permission', async () => {

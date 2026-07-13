@@ -55,7 +55,18 @@ export async function resolveShopScope(prisma: Db, actor: AuthActor): Promise<Sh
   const fromStaff = user.staffIn.map((staff: { shop: { id: string; name: string } }) => ({
     shopId: staff.shop.id,
     name: staff.shop.name
-  }))
+  })).sort((left: { shopId: string }, right: { shopId: string }) =>
+    left.shopId.localeCompare(right.shopId)
+  )
+  const singleShopRole = user.role === 'STAFF' ||
+    (user.role === 'MANAGER' && user.managerAccess === 'ONE_SHOP')
+  if (singleShopRole) {
+    const shop = fromStaff[0]
+    return shop
+      ? { allShops: false, shopIds: [shop.shopId], shops: [shop] }
+      : { allShops: false, shopIds: [], shops: [] }
+  }
+
   const fromOwned = user.shopsOwned.map((shop: { id: string; name: string }) => ({
     shopId: shop.id,
     name: shop.name
