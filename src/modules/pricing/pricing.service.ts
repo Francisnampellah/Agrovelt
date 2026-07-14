@@ -86,10 +86,30 @@ export class PricingService {
   ): Promise<void> {
     const variant = await tx.productVariant.findUnique({ where: { id: params.variantId } })
 
-    if (!variant?.markupPercent) return // Auto-pricing not configured; manual override required
+    let markupPercent = variant?.markupPercent ?? null
+
+    if (!markupPercent) {
+      // No per-variant markup configured (e.g. every Mnyama Shop-sourced
+      // variant) - fall back to the org's default so restocks don't
+      // silently resell at zero margin. Per-variant markup always wins
+      // when set.
+      const shop = await tx.shop.findUnique({
+        where: { id: params.shopId },
+        select: { organizationId: true }
+      })
+      const org = shop
+        ? await tx.organization.findUnique({
+            where: { id: shop.organizationId },
+            select: { defaultMarkupPercent: true }
+          })
+        : null
+      markupPercent = org?.defaultMarkupPercent ?? null
+    }
+
+    if (!markupPercent) return // No markup available anywhere; manual override required
 
     const newSellingPrice = parseFloat(
-      (params.newCostPrice * (1 + variant.markupPercent / 100)).toFixed(2)
+      (params.newCostPrice * (1 + markupPercent / 100)).toFixed(2)
     )
 
     // Using transaction client for inner update to ensure atomicity within the same tx
@@ -119,7 +139,7 @@ export class PricingService {
           priceType: 'SELLING',
           oldPrice: existing?.sellingPrice ?? 0,
           newPrice: newSellingPrice,
-          reason: `Auto-calculated: cost ${params.newCostPrice} + ${variant.markupPercent}% markup`,
+          reason: `Auto-calculated: cost ${params.newCostPrice} + ${markupPercent}% markup`,
           changedBy: params.changedBy
         }
       })

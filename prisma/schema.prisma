@@ -72,12 +72,15 @@ enum TransferStatus {
 // ------------------------------------------------------
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  email       String   @unique
-  phoneNumber String?
-  createdAt   DateTime @default(now())
+  id                  String   @id @default(uuid())
+  name                String
+  slug                String   @unique
+  email               String   @unique
+  phoneNumber         String?
+  // Fallback markup applied when a variant has no markupPercent of its own -
+  // see PricingService.autoUpdateSellingPriceFromCost.
+  defaultMarkupPercent Float?  @default(10)
+  createdAt           DateTime @default(now())
 
   // Core entities strictly isolated per organization
   users           User[]

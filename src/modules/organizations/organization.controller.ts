@@ -16,7 +16,7 @@ import { CreateOrganizationRequest } from './types'
 import { formatCollectorAuthResponse } from '../auth/collectorResponse'
 import { assertShopInScope, resolveShopScope } from '../auth/shopScope'
 import { loadAuthActor } from '../auth/assertActor'
-import { canGenerateReports } from '../auth/permissions'
+import { canGenerateReports, canManageUsers } from '../auth/permissions'
 
 export class OrganizationController {
   constructor(
@@ -108,6 +108,56 @@ export class OrganizationController {
       res.json({ data: org })
     } catch (error: any) {
       res.status(error.message === 'Organization not found' ? 404 : 400).json({ error: error.message })
+    }
+  }
+
+  updateSettingsValidation = [
+    body('defaultMarkupPercent')
+      .optional({ nullable: true })
+      .isFloat({ min: 0 })
+      .withMessage('Default markup percent must be >= 0')
+  ]
+
+  // Shared by getSettings/updateSettings - the org's own OWNER can reach
+  // both (not just platform admins), unlike GET/PUT /organizations/:id.
+  private async assertSettingsAccess(req: AuthenticatedRequest, organizationId: string): Promise<void> {
+    const actor = await loadAuthActor(this.prisma, req)
+    if (!canManageUsers(actor)) {
+      throw Object.assign(new Error('Insufficient permissions for organization settings'), { status: 403 })
+    }
+    if (actor.role === 'OWNER' && actor.organizationId !== organizationId) {
+      throw Object.assign(new Error('Access denied to this organization'), { status: 403 })
+    }
+  }
+
+  getSettings = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const organizationId = String(req.params.id)
+      await this.assertSettingsAccess(req, organizationId)
+
+      const org = await this.organizationService.getOrganizationById(organizationId)
+      res.json({ data: { defaultMarkupPercent: org.defaultMarkupPercent } })
+    } catch (error: any) {
+      const status = error.status ?? this.orgErrorStatus(error.message)
+      res.status(status).json({ error: error.message })
+    }
+  }
+
+  // Narrower than update - only ever writes settings fields, never
+  // name/slug/email.
+  updateSettings = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      const organizationId = String(req.params.id)
+      await this.assertSettingsAccess(req, organizationId)
+
+      const org = await this.organizationService.updateOrganizationSettings(organizationId, req.body)
+      res.json({ data: { defaultMarkupPercent: org.defaultMarkupPercent } })
+    } catch (error: any) {
+      const status = error.status ?? this.orgErrorStatus(error.message)
+      res.status(status).json({ error: error.message })
     }
   }
 

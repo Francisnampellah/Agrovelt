@@ -311,5 +311,77 @@ export function createOrganizationRoutes(
  */
   router.put('/organizations/:id', authMiddleware.authenticate, authMiddleware.authorize('SUPER_ADMIN'), organizationController.updateValidation, organizationController.update)
 
+/**
+ * @swagger
+ * /api/organizations/{id}/settings:
+ *   patch:
+ *     summary: Update an organization's self-service settings
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Unlike PUT /organizations/{id} (platform SUPER_ADMIN only), this is
+ *       reachable by the organization's own OWNER (or a platform admin) and
+ *       only ever touches settings fields - never name/slug/email.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               defaultMarkupPercent:
+ *                 type: number
+ *                 nullable: true
+ *                 description: Fallback markup applied when a variant has no markupPercent of its own
+ *     responses:
+ *       200:
+ *         description: Organization updated
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Organization not found
+ */
+  router.patch(
+    '/organizations/:id/settings',
+    authMiddleware.authenticate,
+    organizationController.updateSettingsValidation,
+    organizationController.updateSettings
+  )
+
+/**
+ * @swagger
+ * /api/organizations/{id}/settings:
+ *   get:
+ *     summary: Get an organization's self-service settings
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Organization settings
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Organization not found
+ */
+  router.get(
+    '/organizations/:id/settings',
+    authMiddleware.authenticate,
+    organizationController.getSettings
+  )
+
   return router
 }

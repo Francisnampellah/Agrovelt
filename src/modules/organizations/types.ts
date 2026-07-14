@@ -12,12 +12,17 @@ export interface UpdateOrganizationRequest {
   phoneNumber?: string
 }
 
+export interface UpdateOrganizationSettingsRequest {
+  defaultMarkupPercent?: number | null
+}
+
 export interface OrganizationResponse {
   id: string
   name: string
   slug: string
   email: string
   phoneNumber: string | null
+  defaultMarkupPercent: number | null
   createdAt: Date
 }
 

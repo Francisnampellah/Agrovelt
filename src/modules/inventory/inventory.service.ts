@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma, InventoryTxnType } from '@prisma/client'
 import { UpdateInventoryRequest, AdjustInventoryRequest } from './types'
+import { PricingService } from '../pricing/pricing.service'
 
 type TxClient = Prisma.TransactionClient
 
@@ -30,7 +31,7 @@ type ResolvedInventoryRow = {
 }
 
 export class InventoryService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaClient, private pricingService?: PricingService) {}
 
   private db(tx?: TxClient): TxClient | PrismaClient {
     return tx ?? this.prisma
@@ -325,13 +326,32 @@ export class InventoryService {
     })
   }
 
-  async adjustInventory(data: AdjustInventoryRequest & { costPrice?: number }, tx?: TxClient) {
+  async adjustInventory(data: AdjustInventoryRequest, tx?: TxClient) {
+    if (tx) {
+      await this.performAdjustInventory(data, tx)
+    } else {
+      await this.prisma.$transaction((innerTx) => this.performAdjustInventory(data, innerTx))
+    }
+
+    // Runs after the inventory change has committed - updateShopSellingPrice
+    // manages its own transaction internally, so it can't participate in
+    // the one above without risking a real nested transaction.
+    if (data.change >= 0 && data.sellingPriceOverride !== undefined && this.pricingService) {
+      await this.pricingService.updateShopSellingPrice({
+        shopId: data.shopId,
+        variantId: data.variantId,
+        newPrice: data.sellingPriceOverride,
+        changedBy: data.changedBy ?? 'system',
+        reason: 'Manual override at stock-in'
+      })
+    }
+  }
+
+  private async performAdjustInventory(data: AdjustInventoryRequest, tx: TxClient) {
     const { shopId, variantId, batchNumber = 'DEFAULT', change, type, referenceId, costPrice } = data
-    
-    const db = this.db(tx)
 
     if (change < 0) {
-      const result = await db.inventory.updateMany({
+      const result = await tx.inventory.updateMany({
         where: {
           shopId,
           variantId,
@@ -345,14 +365,15 @@ export class InventoryService {
       }
     } else {
       if (costPrice === undefined || costPrice <= 0) {
-        throw new Error('costPrice is required and must be > 0 for positive adjustments')
+        throw new Error('costPrice is required and must be > 0 for non-negative adjustments')
       }
-      await db.inventory.upsert({
+      await tx.inventory.upsert({
         where: {
           shopId_variantId_batchNumber: { shopId, variantId, batchNumber }
         },
         update: {
-          quantity: { increment: change }
+          quantity: { increment: change },
+          costPrice: costPrice
         },
         create: {
           shopId,
@@ -362,18 +383,32 @@ export class InventoryService {
           costPrice: costPrice
         }
       })
+
+      if (this.pricingService && data.sellingPriceOverride === undefined) {
+        await this.pricingService.autoUpdateSellingPriceFromCost(tx, {
+          shopId,
+          variantId,
+          newCostPrice: costPrice,
+          changedBy: data.changedBy ?? 'system'
+        })
+      }
     }
 
-    await db.inventoryTransaction.create({
-      data: {
-        shopId,
-        variantId,
-        batchNumber,
-        type: type ?? InventoryTxnType.ADJUSTMENT,
-        quantity: change,
-        referenceId: referenceId ?? null
-      }
-    })
+    // change === 0 means this call is a price-only correction (see
+    // AgrovetShopInventoryPage's "Edit price" action) - no stock actually
+    // moved, so there's nothing to log in the transaction ledger.
+    if (change !== 0) {
+      await tx.inventoryTransaction.create({
+        data: {
+          shopId,
+          variantId,
+          batchNumber,
+          type: type ?? InventoryTxnType.ADJUSTMENT,
+          quantity: change,
+          referenceId: referenceId ?? null
+        }
+      })
+    }
   }
 
   async getInventoryByShop(shopId: string) {

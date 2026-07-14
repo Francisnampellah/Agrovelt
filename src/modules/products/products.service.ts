@@ -26,6 +26,13 @@ function isSkuUniqueConflict(error: unknown): boolean {
   )
 }
 
+// Markup is the source of truth when set - matches
+// PricingService.autoUpdateSellingPriceFromCost's formula, so a variant's
+// org-wide default selling price never silently drifts from its markup.
+function computeSellingPriceFromMarkup(costPrice: number, markupPercent: number): number {
+  return parseFloat((Number(costPrice) * (1 + Number(markupPercent) / 100)).toFixed(2))
+}
+
 // Builds a readable SKU from product/variant names, e.g. "OXYTETRACYCLINE"
 // + "100ml Bottle" -> "OXYTETRACYCLINE-100ML-BOTTLE".
 function slugifyForSku(value: string): string {
@@ -200,6 +207,16 @@ export class ProductService {
     })
     if (!product) throw new Error('Product not found')
 
+    if (data.markupPercent != null) {
+      if (data.defaultCostPrice == null) {
+        throw new Error('Default cost price is required to use markup percent')
+      }
+      data.defaultSellingPrice = computeSellingPriceFromMarkup(
+        data.defaultCostPrice,
+        data.markupPercent
+      )
+    }
+
     if (
       data.defaultCostPrice != null &&
       data.defaultSellingPrice != null &&
@@ -251,6 +268,15 @@ export class ProductService {
     }
 
     const effectiveCostPrice = data.defaultCostPrice ?? variant.defaultCostPrice
+    const effectiveMarkupPercent = data.markupPercent ?? variant.markupPercent
+
+    if (effectiveMarkupPercent != null) {
+      if (effectiveCostPrice == null) {
+        throw new Error('Default cost price is required to use markup percent')
+      }
+      data.defaultSellingPrice = computeSellingPriceFromMarkup(effectiveCostPrice, effectiveMarkupPercent)
+    }
+
     const effectiveSellingPrice = data.defaultSellingPrice ?? variant.defaultSellingPrice
     if (
       effectiveCostPrice != null &&
