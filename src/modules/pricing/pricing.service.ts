@@ -3,10 +3,13 @@ import { PrismaClient } from '@prisma/client'
 export class PricingService {
   constructor(private prisma: PrismaClient) {}
 
+  // Also acts as the "is this variant actually sellable" gate -
+  // SaleService.createSale calls this unconditionally for every item, even
+  // when the caller supplies its own price, specifically so a typed-in
+  // number can never stand in for a variant/batch that was never priced.
   async resolveSellingPrice(shopId: string, variantId: string, inventoryId?: string): Promise<number> {
-    // Priority 1: the specific batch's own price (SaleRecordDrawer.jsx
-    // always sends an explicit price today, so this rarely fires from the
-    // web UI - it's here for any caller that omits one).
+    // Priority 1: the specific batch's own price, set at Stock In/Purchase
+    // or via the "Edit price" action.
     if (inventoryId) {
       const inventory = await this.prisma.inventory.findUnique({
         where: { id: inventoryId }
@@ -27,8 +30,8 @@ export class PricingService {
     if (variant?.defaultSellingPrice) return variant.defaultSellingPrice
 
     throw new Error(
-      `No selling price configured for variant ${variantId} in shop ${shopId}. ` +
-      `Set a default on the variant or a shop override.`
+      `No selling price has been set for this product in this shop yet. ` +
+      `Set a price on this batch (Edit price), the variant's default selling price, or a markup, before selling it.`
     )
   }
 
