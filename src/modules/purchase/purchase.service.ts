@@ -1,6 +1,5 @@
 import { PrismaClient, CashFlowCategory, CashFlowDirection } from '@prisma/client'
 import { InventoryService } from '../inventory/inventory.service'
-import { PricingService } from '../pricing/pricing.service'
 import { CashFlowService } from '../cashflow/cashflow.service'
 
 export interface CreatePurchaseRequest {
@@ -20,7 +19,6 @@ export class PurchaseService {
   constructor(
     private prisma: PrismaClient,
     private inventoryService: InventoryService,
-    private pricingService: PricingService,
     private cashFlowService: CashFlowService
   ) {}
 
@@ -53,6 +51,9 @@ export class PurchaseService {
           }
         })
 
+        // receivePurchaseBatch computes and sets this batch's own selling
+        // price (per-variant markup, or the org default for Mnyama Shop
+        // items) as part of the same write.
         await this.inventoryService.receivePurchaseBatch({
           shopId: data.shopId,
           variantId: item.variantId,
@@ -62,14 +63,6 @@ export class PurchaseService {
           costPrice: item.costPrice,
           purchaseId: purchase.id
         }, tx)
-
-        // 4. Optionally auto-update selling price based on markup
-        await this.pricingService.autoUpdateSellingPriceFromCost(tx, {
-          shopId: data.shopId,
-          variantId: item.variantId,
-          newCostPrice: item.costPrice,
-          changedBy: data.createdBy
-        })
       }
 
       // 5. Record cash outflow

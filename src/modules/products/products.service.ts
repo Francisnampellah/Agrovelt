@@ -7,6 +7,7 @@ import {
   UpdateProductVariantRequest
 } from './types'
 import { deleteFile, getFilePath } from '../../utils/fileUpload'
+import { computeSellingPriceFromMarkup } from '../../utils/pricing'
 
 const MAX_SKU_GENERATION_ATTEMPTS = 5
 
@@ -24,13 +25,6 @@ function isSkuUniqueConflict(error: unknown): boolean {
     Array.isArray(prismaError.meta?.target) &&
     prismaError.meta.target.includes('sku')
   )
-}
-
-// Markup is the source of truth when set - matches
-// PricingService.autoUpdateSellingPriceFromCost's formula, so a variant's
-// org-wide default selling price never silently drifts from its markup.
-function computeSellingPriceFromMarkup(costPrice: number, markupPercent: number): number {
-  return parseFloat((Number(costPrice) * (1 + Number(markupPercent) / 100)).toFixed(2))
 }
 
 // Builds a readable SKU from product/variant names, e.g. "OXYTETRACYCLINE"
@@ -201,11 +195,18 @@ export class ProductService {
   }
 
   // Variant Methods
-  async createVariant(data: CreateProductVariantRequest) {
+  async createVariant(data: CreateProductVariantRequest, actorRole?: string) {
     const product = await this.prisma.product.findUnique({
       where: { id: data.productId }
     })
     if (!product) throw new Error('Product not found')
+
+    // Mnyama Shop products own their own variant set via the catalog sync
+    // (an admin-authenticated path) - a regular org user adding a variant
+    // here would silently attach non-Mnyama data to a synced product.
+    if (product.source === 'MNYAMA_SHOP' && actorRole !== 'SUPER_ADMIN' && actorRole !== 'ADMIN') {
+      throw new Error('Cannot add a variant to a Mnyama Shop product')
+    }
 
     if (data.markupPercent != null) {
       if (data.defaultCostPrice == null) {

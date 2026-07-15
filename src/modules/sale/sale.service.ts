@@ -65,7 +65,7 @@ export class SaleService {
           for (const item of data.items) {
             let price = item.price
             if (price === undefined) {
-              price = await this.pricingService.resolveSellingPrice(data.shopId, item.variantId)
+              price = await this.pricingService.resolveSellingPrice(data.shopId, item.variantId, item.inventoryId)
             } else {
               await this.pricingService.validateSalePrice(data.shopId, item.variantId, price)
             }

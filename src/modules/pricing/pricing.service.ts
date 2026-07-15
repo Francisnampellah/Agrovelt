@@ -1,16 +1,26 @@
-import { PrismaClient, Prisma } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 
 export class PricingService {
   constructor(private prisma: PrismaClient) {}
 
-  async resolveSellingPrice(shopId: string, variantId: string): Promise<number> {
-    // Priority 1: Shop-level override
+  async resolveSellingPrice(shopId: string, variantId: string, inventoryId?: string): Promise<number> {
+    // Priority 1: the specific batch's own price (SaleRecordDrawer.jsx
+    // always sends an explicit price today, so this rarely fires from the
+    // web UI - it's here for any caller that omits one).
+    if (inventoryId) {
+      const inventory = await this.prisma.inventory.findUnique({
+        where: { id: inventoryId }
+      })
+      if (inventory?.sellingPrice != null) return inventory.sellingPrice
+    }
+
+    // Priority 2: Shop-level override
     const shopPrice = await this.prisma.shopVariantPrice.findUnique({
       where: { shopId_variantId: { shopId, variantId } }
     })
     if (shopPrice) return shopPrice.sellingPrice
 
-    // Priority 2: Variant-level default
+    // Priority 3: Variant-level default
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: variantId }
     })
@@ -77,72 +87,6 @@ export class PricingService {
       throw new Error(
         `Charged price ${chargedPrice} is below the minimum allowed price of ${shopPrice.minSellingPrice}`
       )
-    }
-  }
-
-  async autoUpdateSellingPriceFromCost(
-    tx: Prisma.TransactionClient,
-    params: { shopId: string; variantId: string; newCostPrice: number; changedBy: string }
-  ): Promise<void> {
-    const variant = await tx.productVariant.findUnique({ where: { id: params.variantId } })
-
-    let markupPercent = variant?.markupPercent ?? null
-
-    if (!markupPercent) {
-      // No per-variant markup configured (e.g. every Mnyama Shop-sourced
-      // variant) - fall back to the org's default so restocks don't
-      // silently resell at zero margin. Per-variant markup always wins
-      // when set.
-      const shop = await tx.shop.findUnique({
-        where: { id: params.shopId },
-        select: { organizationId: true }
-      })
-      const org = shop
-        ? await tx.organization.findUnique({
-            where: { id: shop.organizationId },
-            select: { defaultMarkupPercent: true }
-          })
-        : null
-      markupPercent = org?.defaultMarkupPercent ?? null
-    }
-
-    if (!markupPercent) return // No markup available anywhere; manual override required
-
-    const newSellingPrice = parseFloat(
-      (params.newCostPrice * (1 + markupPercent / 100)).toFixed(2)
-    )
-
-    // Using transaction client for inner update to ensure atomicity within the same tx
-    const existing = await tx.shopVariantPrice.findUnique({
-      where: { shopId_variantId: { shopId: params.shopId, variantId: params.variantId } }
-    })
-
-    await tx.shopVariantPrice.upsert({
-      where: { shopId_variantId: { shopId: params.shopId, variantId: params.variantId } },
-      update: {
-        sellingPrice: newSellingPrice,
-        updatedBy: params.changedBy
-      },
-      create: {
-        shopId: params.shopId,
-        variantId: params.variantId,
-        sellingPrice: newSellingPrice,
-        updatedBy: params.changedBy
-      }
-    })
-
-    if (existing?.sellingPrice !== newSellingPrice) {
-      await tx.priceHistory.create({
-        data: {
-          shopId: params.shopId,
-          variantId: params.variantId,
-          priceType: 'SELLING',
-          oldPrice: existing?.sellingPrice ?? 0,
-          newPrice: newSellingPrice,
-          reason: `Auto-calculated: cost ${params.newCostPrice} + ${markupPercent}% markup`,
-          changedBy: params.changedBy
-        }
-      })
     }
   }
 }

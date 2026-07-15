@@ -220,7 +220,7 @@ export class ProductController {
 
       stripProvenanceFieldsUnlessAdmin(req)
 
-      const variant = await this.productService.createVariant(req.body)
+      const variant = await this.productService.createVariant(req.body, (req as AuthenticatedRequest).user?.role)
       res.status(201).json({ data: variant })
     } catch (error: any) {
       res.status(400).json({ error: error.message })

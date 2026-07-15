@@ -287,7 +287,11 @@ model Inventory {
 
   quantity     Int      @default(0)
   costPrice    Float
-  // sellingPrice Float // Removed in favor of ShopVariantPrice
+  // Per-batch selling price - null until a markup (per-variant or, for
+  // Mnyama Shop items, the org default) or a manual override determines
+  // one. Falls back to ShopVariantPrice / ProductVariant.defaultSellingPrice
+  // at sale time (see PricingService.resolveSellingPrice).
+  sellingPrice Float?
   updatedAt    DateTime @updatedAt
 
   shop    Shop           @relation(fields: [shopId], references: [id])
