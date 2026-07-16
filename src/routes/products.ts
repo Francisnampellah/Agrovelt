@@ -453,6 +453,14 @@ router.delete(
  *       Create a product variant (size/package option).
  *       SKU must be globally unique across the system. If omitted, a SKU is
  *       generated automatically from the product and variant names.
+ *
+ *       If markupPercent is set, defaultSellingPrice is computed server-side
+ *       as defaultCostPrice * (1 + markupPercent / 100) - any
+ *       defaultSellingPrice sent in the request is ignored in that case.
+ *
+ *       A non-admin actor cannot add a variant under a product whose
+ *       source is MNYAMA_SHOP - that catalog is owned by the Mnyama Shop
+ *       sync, not editable from the Agrovet dashboard.
  *     requestBody:
  *       required: true
  *       content:
@@ -506,7 +514,7 @@ router.delete(
  *                     markupPercent: { type: number, nullable: true }
  *                     createdAt: { type: string, format: date-time }
  *       400:
- *         description: Invalid input or SKU already exists
+ *         description: Invalid input, SKU already exists, or (non-admin actor) the parent product is Mnyama Shop-sourced
  *         content:
  *           application/json:
  *             schema:

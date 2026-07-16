@@ -503,4 +503,50 @@
  *         description: Insufficient permissions
  *       404:
  *         description: User not found
+ *
+ * /api/organizations/{id}/settings:
+ *   get:
+ *     tags: [Organizations]
+ *     summary: Get an organization's self-service settings
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization settings
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Organization not found
+ *   patch:
+ *     tags: [Organizations]
+ *     summary: Update an organization's self-service settings
+ *     description: |
+ *       Unlike PUT /organizations/{id} (platform SUPER_ADMIN only), this is
+ *       reachable by the organization's own OWNER (or a platform admin) and
+ *       only ever touches settings fields - never name/slug/email.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               defaultMarkupPercent: { type: number, nullable: true, description: 'Fallback markup applied when a variant has no markupPercent of its own' }
+ *     responses:
+ *       200:
+ *         description: Organization settings updated
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Organization not found
  */

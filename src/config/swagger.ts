@@ -78,6 +78,7 @@ export function getSwaggerConfig(port: number | string) {
               slug: { type: 'string' },
               email: { type: 'string' },
               phoneNumber: { type: 'string', nullable: true },
+              defaultMarkupPercent: { type: 'number', nullable: true, description: 'Fallback markup used when a variant has no markupPercent of its own; defaults to 10' },
               createdAt: { type: 'string', format: 'date-time' }
             }
           },
@@ -110,6 +111,8 @@ export function getSwaggerConfig(port: number | string) {
               dosageInfo: { type: 'string', nullable: true, description: 'Dosage information for drugs/pesticides' },
               manufacturer: { type: 'string', nullable: true },
               isRestricted: { type: 'boolean', description: 'Restricted products (e.g., regulated chemicals)' },
+              source: { type: 'string', enum: ['MNYAMA_SHOP', 'CUSTOM'], description: 'MNYAMA_SHOP products are synced from the Mnyama Shop catalog and cannot be edited/deleted from the Agrovet dashboard' },
+              mnyamaShopDocId: { type: 'string', nullable: true, description: 'Firestore product doc ID, set only for MNYAMA_SHOP products' },
               imageUrl: { type: 'string', nullable: true, description: 'Public URL to product image' },
               imageMimeType: { type: 'string', nullable: true },
               createdAt: { type: 'string', format: 'date-time' }
@@ -122,8 +125,9 @@ export function getSwaggerConfig(port: number | string) {
               productId: { type: 'string', format: 'uuid' },
               name: { type: 'string' },
               sku: { type: 'string' },
+              source: { type: 'string', enum: ['MNYAMA_SHOP', 'CUSTOM'], description: 'Tracked independently from the parent Product’s source' },
               defaultCostPrice: { type: 'number', nullable: true },
-              defaultSellingPrice: { type: 'number', nullable: true },
+              defaultSellingPrice: { type: 'number', nullable: true, description: 'Computed server-side from defaultCostPrice + markupPercent when markupPercent is set' },
               markupPercent: { type: 'number', nullable: true },
               createdAt: { type: 'string', format: 'date-time' }
             }
@@ -138,6 +142,7 @@ export function getSwaggerConfig(port: number | string) {
               expiryDate: { type: 'string', format: 'date-time', nullable: true },
               quantity: { type: 'integer' },
               costPrice: { type: 'number' },
+              sellingPrice: { type: 'number', nullable: true, description: 'This batch’s own selling price - takes priority over ShopVariantPrice/ProductVariant.defaultSellingPrice when resolving what to charge' },
               updatedAt: { type: 'string', format: 'date-time' }
             }
           },
