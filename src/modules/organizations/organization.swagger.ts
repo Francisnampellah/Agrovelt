@@ -417,7 +417,7 @@
  *               name: { type: string }
  *               email: { type: string, format: email }
  *               password: { type: string, minLength: 8 }
- *               phoneNumber: { type: string, minLength: 9, description: Written to Firestore users/{uid}.phone_no }
+ *               phoneNumber: { type: string, minLength: 9, description: "Written to Firestore users/{uid}.phone_no" }
  *               role: { type: string, enum: [STAFF, MANAGER] }
  *               managerAccess: { type: string, enum: [ONE_SHOP, ALL_SHOPS] }
  *               shopId: { type: string, format: uuid }
