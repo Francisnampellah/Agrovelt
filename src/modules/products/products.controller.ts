@@ -108,6 +108,27 @@ export class ProductController {
     }
   }
 
+  updateCategory = async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      const category = await this.productService.updateCategory(String(req.params.id), req.body)
+      res.json({ data: category })
+    } catch (error: any) {
+      res.status(error.message === 'Category not found' ? 404 : 400).json({ error: error.message })
+    }
+  }
+
+  deleteCategory = async (req: Request, res: Response) => {
+    try {
+      await this.productService.deleteCategory(String(req.params.id))
+      res.json({ message: 'Category deleted successfully' })
+    } catch (error: any) {
+      res.status(error.message === 'Category not found' ? 404 : 400).json({ error: error.message })
+    }
+  }
+
   createProduct = async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req)

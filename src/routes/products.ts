@@ -60,6 +60,10 @@ export function createProductRoutes(prisma: PrismaClient) {
  *                     properties:
  *                       id: { type: string, format: uuid }
  *                       name: { type: string }
+ *                       _count:
+ *                         type: object
+ *                         properties:
+ *                           products: { type: integer, description: 'How many products reference this category - a non-zero count blocks delete' }
  *       401:
  *         description: Authentication required
  *         content:
@@ -77,6 +81,10 @@ router.get('/categories', authMiddleware.authenticate, productController.getAllC
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
+ *     description: |
+ *       SUPER_ADMIN/ADMIN only. Rejects a name that already matches an
+ *       existing category (case-insensitive) instead of creating a
+ *       duplicate.
  *     requestBody:
  *       required: true
  *       content:
@@ -103,13 +111,98 @@ router.get('/categories', authMiddleware.authenticate, productController.getAllC
  *                     id: { type: string, format: uuid }
  *                     name: { type: string }
  *       400:
- *         description: Invalid input
+ *         description: Invalid input, or a category with this name already exists
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Insufficient permissions
  */
-router.post('/categories', authMiddleware.authenticate, productController.categoryValidation, productController.createCategory)
+router.post(
+  '/categories',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.categoryValidation,
+  productController.createCategory
+)
+
+/**
+ * @swagger
+ * /api/categories/{id}:
+ *   patch:
+ *     summary: Rename a product category
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     description: SUPER_ADMIN/ADMIN only. Same case-insensitive uniqueness check as create.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name: { type: string, minLength: 1 }
+ *     responses:
+ *       200:
+ *         description: Category renamed
+ *       400:
+ *         description: Invalid input, or a category with this name already exists
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Category not found
+ */
+router.patch(
+  '/categories/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.categoryValidation,
+  productController.updateCategory
+)
+
+/**
+ * @swagger
+ * /api/categories/{id}:
+ *   delete:
+ *     summary: Delete a product category
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       SUPER_ADMIN/ADMIN only. Rejected if any Agrovet Product still
+ *       references this category - check the _count.products field from
+ *       GET /api/categories before offering delete in a UI. Does not (and
+ *       cannot) check Mnyama Shop Firestore products, which store a
+ *       category name string rather than a reference to this row.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Category deleted
+ *       400:
+ *         description: Category is still assigned to one or more products
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Category not found
+ */
+router.delete(
+  '/categories/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.deleteCategory
+)
 
 /**
  * @swagger

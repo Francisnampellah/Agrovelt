@@ -3,6 +3,7 @@ import {
   CreateProductRequest,
   CreateProductVariantRequest,
   CreateCategoryRequest,
+  UpdateCategoryRequest,
   UpdateProductRequest,
   UpdateProductVariantRequest
 } from './types'
@@ -43,12 +44,44 @@ export class ProductService {
 
   // Category Methods
   async createCategory(data: CreateCategoryRequest) {
+    const existing = await this.prisma.category.findFirst({
+      where: { name: { equals: data.name, mode: 'insensitive' } }
+    })
+    if (existing) throw new Error(`Category '${data.name}' already exists`)
+
     return this.prisma.category.create({ data })
+  }
+
+  async updateCategory(id: string, data: UpdateCategoryRequest) {
+    const category = await this.prisma.category.findUnique({ where: { id } })
+    if (!category) throw new Error('Category not found')
+
+    const existing = await this.prisma.category.findFirst({
+      where: { name: { equals: data.name, mode: 'insensitive' }, id: { not: id } }
+    })
+    if (existing) throw new Error(`Category '${data.name}' already exists`)
+
+    return this.prisma.category.update({ where: { id }, data })
+  }
+
+  async deleteCategory(id: string) {
+    const category = await this.prisma.category.findUnique({ where: { id } })
+    if (!category) throw new Error('Category not found')
+
+    const productCount = await this.prisma.product.count({ where: { categoryId: id } })
+    if (productCount > 0) {
+      throw new Error(
+        `Cannot delete category '${category.name}': still assigned to ${productCount} product(s)`
+      )
+    }
+
+    await this.prisma.category.delete({ where: { id } })
   }
 
   async getAllCategories() {
     return this.prisma.category.findMany({
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { products: true } } }
     })
   }
 
