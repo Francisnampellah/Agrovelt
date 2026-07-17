@@ -83,11 +83,14 @@ async function main() {
   // Distinct from the demo catalog below, which is unrelated sample data.
   await seedMnyamaShopCategories(prisma)
 
-  if (process.env.SEED_BUILTIN_CATALOG === 'true') {
+  // Demo/testing catalog (CUSTOM products). Enabled by default for local testing;
+  // set SEED_BUILTIN_CATALOG=false to skip. Independent of Mnyama Shop Firebase sync.
+  if (process.env.SEED_BUILTIN_CATALOG !== 'false') {
     await seedCatalog(prisma)
+    console.log('Built-in demo catalog seed complete (CUSTOM products).')
   } else {
     console.log(
-      'Skipping built-in demo catalog seed. Set SEED_BUILTIN_CATALOG=true to import demo products.'
+      'Skipping built-in demo catalog seed. Unset SEED_BUILTIN_CATALOG or set it to true to import demo products.'
     )
   }
 

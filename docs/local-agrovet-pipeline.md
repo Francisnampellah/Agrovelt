@@ -33,13 +33,14 @@ npm run prisma:seed
 npm run dev
 ```
 
-The seed command now skips demo catalog products unless:
+The seed command imports the **built-in demo catalog** (CUSTOM products) by default for local testing.
 
 ```env
-SEED_BUILTIN_CATALOG=true
+SEED_BUILTIN_CATALOG=true   # default — demo fertilizers/pesticides/etc.
+SEED_FIREBASE_PRODUCTS=true # optional — also sync Mnyama Shop Firestore catalog
 ```
 
-For this local pipeline, keep:
+To skip the demo catalog (Mnyama-only):
 
 ```env
 SEED_BUILTIN_CATALOG=false
