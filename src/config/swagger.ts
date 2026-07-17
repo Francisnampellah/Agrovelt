@@ -31,6 +31,7 @@ export function getSwaggerConfig(port: number | string) {
         { name: 'Inventory', description: 'Inventory tracking and management' },
         { name: 'Pricing', description: 'Pricing management and overrides' },
         { name: 'CashFlow', description: 'Cash flow entries and reports' },
+        { name: 'Reports', description: 'Customizable organization business reports' },
         { name: 'Purchases', description: 'Purchase orders and receipts' },
         { name: 'Sales', description: 'Sales and payments' },
         { name: 'Receipts', description: 'Sale receipts and printing' },

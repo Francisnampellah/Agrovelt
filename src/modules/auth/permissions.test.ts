@@ -6,6 +6,7 @@ import {
   canAddStock,
   canPurchase,
   canGenerateReports,
+  canGenerateBusinessReport,
   canSell,
   canRefund,
   canAddExpense,
@@ -49,4 +50,6 @@ test('manager can stock/purchase/report in scope', () => {
   assert.equal(canPurchase(all, true), true)
   assert.equal(canGenerateReports(one, { allShopsScope: false }), true)
   assert.equal(canGenerateReports(all, { allShopsScope: true }), true)
+  assert.equal(canGenerateBusinessReport(one), true)
+  assert.equal(canGenerateBusinessReport({ userId: '1', role: 'STAFF' }), false)
 })

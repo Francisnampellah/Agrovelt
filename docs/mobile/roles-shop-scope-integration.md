@@ -406,6 +406,7 @@ Sales line items support exact inventory row depletion.
 - [ ] Handle `403` as “out of scope / not allowed” (not generic network error)  
 - [ ] Prefer `inventoryId` on sale line items  
 - [ ] Show stock from inventory endpoints, not product catalog quantity  
+- [ ] Use `POST /api/organizations/{orgId}/reports/generate` for Business Report (see `docs/mobile/business-report-api.md`)  
 
 ---
 
@@ -417,6 +418,9 @@ Sales line items support exact inventory row depletion.
 | `GET` | `/api/organizations/{orgId}/users` | OWNER, ADMIN, SUPER_ADMIN |
 | `PATCH` | `/api/organizations/{orgId}/users/{userId}` | OWNER, ADMIN, SUPER_ADMIN |
 | `POST` | `/api/organizations/{orgId}/users/{userId}/deactivate` | OWNER, ADMIN, SUPER_ADMIN |
+| `POST` | `/api/organizations/{orgId}/reports/generate` | OWNER, MANAGER (scoped), ADMIN, SUPER_ADMIN |
+| `GET` | `/api/organizations/{orgId}/reports` | same |
+| `GET` | `/api/organizations/{orgId}/reports/{reportId}` | same |
 | `POST` | `/api/cashflow/funding` | OWNER, MANAGER `ALL_SHOPS` |
 
 Auth response fields added: `managerAccess`, `allShops`, `shopScope`, `shops`.

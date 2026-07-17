@@ -86,6 +86,7 @@ model Organization {
   receipts        Receipt[]
   receiptCounters ReceiptCounter[]
   notifications   Notification[]
+  businessReports BusinessReport[]
 }
 
 // ------------------------------------------------------
@@ -112,6 +113,7 @@ model User {
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
   notifications Notification[]
+  businessReports BusinessReport[]
 }
 
 model RefreshToken {
@@ -556,4 +558,23 @@ model Notification {
 
   @@index([organizationId, createdAt])
   @@index([organizationId, isRead])
+}
+
+model BusinessReport {
+  id                String   @id @default(uuid())
+  organizationId    String
+  generatedByUserId String
+  from              DateTime
+  to                DateTime
+  timezone          String   @default("Africa/Dar_es_Salaam")
+  currency          String   @default("TZS")
+  shopIds           Json
+  request           Json
+  payload           Json
+  createdAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  generatedBy  User         @relation(fields: [generatedByUserId], references: [id])
+
+  @@index([organizationId, createdAt])
 }

@@ -38,6 +38,12 @@ export function canGenerateReports(
   return !opts.allShopsScope
 }
 
+/** Business report API: MANAGER may generate within resolved shop scope (including omitted shopIds). */
+export function canGenerateBusinessReport(actor: AuthActor): boolean {
+  if (actor.role === 'OWNER' || isPlatformAdmin(actor)) return true
+  return actor.role === 'MANAGER'
+}
+
 function shopOpsAllowed(actor: AuthActor, shopInScope: boolean): boolean {
   if (!shopInScope) return false
   return (

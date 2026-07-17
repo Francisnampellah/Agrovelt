@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { AuthMiddleware, AuthService } from '../modules/auth'
 import { createOrganizationModule, OrganizationModuleDeps } from '../modules/organizations'
+import { createReportsModule } from '../modules/reports'
 
 const router = Router()
 
@@ -11,6 +12,7 @@ export function createOrganizationRoutes(
 ) {
   const authMiddleware = new AuthMiddleware(new AuthService(prisma))
   const { organizationController, orgUsersController } = createOrganizationModule(prisma, deps)
+  const { reportController } = createReportsModule(prisma)
 
 /**
  * @swagger
@@ -131,6 +133,27 @@ export function createOrganizationRoutes(
     '/organizations/:id/stock',
     authMiddleware.authenticate,
     organizationController.getStock
+  )
+
+  router.post(
+    '/organizations/:id/reports/generate',
+    authMiddleware.authenticate,
+    reportController.generateValidation,
+    reportController.generate
+  )
+
+  router.get(
+    '/organizations/:id/reports',
+    authMiddleware.authenticate,
+    reportController.listValidation,
+    reportController.list
+  )
+
+  router.get(
+    '/organizations/:id/reports/:reportId',
+    authMiddleware.authenticate,
+    reportController.getValidation,
+    reportController.getById
   )
 
   const canManageOrgUsers = authMiddleware.authorize('OWNER', 'ADMIN', 'SUPER_ADMIN')
