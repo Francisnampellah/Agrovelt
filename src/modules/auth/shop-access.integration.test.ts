@@ -94,7 +94,8 @@ test('OrganizationController.getShops limits one-shop managers to assigned shops
     {} as never,
     {
       getAllShops: async () => [assignedShop, otherShop]
-    } as never
+    } as never,
+    {} as never
   )
   const response = createResponse()
 

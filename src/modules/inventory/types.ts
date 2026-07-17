@@ -16,6 +16,11 @@ export interface AdjustInventoryRequest {
   change: number
   type: InventoryTxnType
   referenceId?: string
+  costPrice?: number
+  // When set, this shop's selling price is set directly instead of being
+  // auto-calculated from cost + markup.
+  sellingPriceOverride?: number
+  changedBy?: string
 }
 
 export interface InventoryResponse {

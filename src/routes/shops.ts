@@ -93,7 +93,7 @@ router.get('/shops/:id', authMiddleware.authenticate, shopController.getById)
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, ownerId, organizationId]
+ *             required: [name, ownerId, organizationId, region, country, district, streetAddress, phoneNumber]
  *             properties:
  *               name:
  *                 type: string
@@ -117,6 +117,21 @@ router.get('/shops/:id', authMiddleware.authenticate, shopController.getById)
  *                 format: uuid
  *                 nullable: true
  *                 description: Parent shop ID if this is a BRANCH shop
+ *               region:
+ *                 type: string
+ *                 example: Dar es Salaam
+ *               country:
+ *                 type: string
+ *                 example: Tanzania
+ *               district:
+ *                 type: string
+ *                 example: Kinondoni
+ *               streetAddress:
+ *                 type: string
+ *                 example: Mikocheni B, Plot 42
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "0712-345-678"
  *     responses:
  *       201:
  *         description: Shop created successfully

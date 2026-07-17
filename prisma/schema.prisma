@@ -72,12 +72,15 @@ enum TransferStatus {
 // ------------------------------------------------------
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  email       String   @unique
-  phoneNumber String?
-  createdAt   DateTime @default(now())
+  id                  String   @id @default(uuid())
+  name                String
+  slug                String   @unique
+  email               String   @unique
+  phoneNumber         String?
+  // Fallback markup applied when a variant has no markupPercent of its own -
+  // see PricingService.autoUpdateSellingPriceFromCost.
+  defaultMarkupPercent Float?  @default(10)
+  createdAt           DateTime @default(now())
 
   // Core entities strictly isolated per organization
   users           User[]
@@ -146,6 +149,11 @@ model Shop {
   type           ShopType @default(MAIN)
   name           String
   location       String?
+  region         String?
+  country        String?
+  district       String?
+  streetAddress  String?
+  phoneNumber    String?
 
   // Branching hierarchy
   // Rule: MAIN shops have parentId = null. 
@@ -200,6 +208,11 @@ model Category {
   products Product[]
 }
 
+enum ProductSource {
+  MNYAMA_SHOP // Synced from the Mnyama Shop Firestore catalog
+  CUSTOM // Created directly by an Agrovet user
+}
+
 model Product {
   id         String  @id @default(uuid())
   categoryId String?
@@ -212,6 +225,12 @@ model Product {
   dosageInfo   String? // specific dosage for drugs/pesticides
   manufacturer String?
   isRestricted Boolean @default(false) // e.g. regulated chemicals
+
+  // Provenance: distinguishes Mnyama Shop synced products from ones an
+  // Agrovet user created directly. mnyamaShopDocId is the Firestore product
+  // doc ID for MNYAMA_SHOP products (one per product, unlike variant SKUs).
+  source          ProductSource @default(CUSTOM)
+  mnyamaShopDocId String?       @unique
 
   // Image handling
   imageUrl     String? // URL to access the image
@@ -229,7 +248,11 @@ model ProductVariant {
   productId String
   name      String // e.g. "500ml", "1kg"
   sku       String
-  
+
+  // Independent from Product.source: a custom variant can be added under a
+  // Mnyama Shop product, so provenance is tracked per-variant too.
+  source ProductSource @default(CUSTOM)
+
   defaultCostPrice    Float?   // Org-wide fallback cost
   defaultSellingPrice Float?   // Org-wide fallback selling price
   markupPercent       Float?   // If set, selling price = costPrice * (1 + markup/100)
@@ -266,7 +289,11 @@ model Inventory {
 
   quantity     Int      @default(0)
   costPrice    Float
-  // sellingPrice Float // Removed in favor of ShopVariantPrice
+  // Per-batch selling price - null until a markup (per-variant or, for
+  // Mnyama Shop items, the org default) or a manual override determines
+  // one. Falls back to ShopVariantPrice / ProductVariant.defaultSellingPrice
+  // at sale time (see PricingService.resolveSellingPrice).
+  sellingPrice Float?
   updatedAt    DateTime @updatedAt
 
   shop    Shop           @relation(fields: [shopId], references: [id])

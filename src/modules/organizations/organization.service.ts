@@ -3,6 +3,7 @@ import {
   CreateOrganizationForUserResponse,
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
+  UpdateOrganizationSettingsRequest,
   OrganizationResponse
 } from './types'
 
@@ -89,6 +90,31 @@ export class OrganizationService {
     return this.prisma.organization.update({
       where: { id },
       data
+    })
+  }
+
+  // Deliberately narrower than updateOrganization - reachable by an org's
+  // own OWNER (see OrganizationController.updateSettings), so it must only
+  // ever touch fields safe for the org itself to self-serve, never
+  // name/slug/email.
+  async updateOrganizationSettings(
+    id: string,
+    data: UpdateOrganizationSettingsRequest
+  ): Promise<OrganizationResponse> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id }
+    })
+
+    if (!org) {
+      throw new Error('Organization not found')
+    }
+
+    return this.prisma.organization.update({
+      where: { id },
+      // Omitting the key (rather than passing `undefined` through) keeps
+      // PATCH semantics correct - an absent field leaves the stored value
+      // untouched, while an explicit `null` clears it.
+      data: 'defaultMarkupPercent' in data ? { defaultMarkupPercent: data.defaultMarkupPercent } : {}
     })
   }
 }

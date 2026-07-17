@@ -520,6 +520,64 @@ export class AuthService {
     })
   }
 
+  async getOrganizationUsers(organizationId: string) {
+    return this.prisma.user.findMany({
+      where: { organizationId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        staffIn: {
+          select: {
+            role: true,
+            shop: { select: { id: true, name: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+  }
+
+  // Creates a team member directly (not an email invite — the caller sets
+  // the initial password here and relays it to the person out of band).
+  // TODO: link to Firebase Auth so these accounts can sign in the same way
+  // as the rest of AMD, instead of a password known only to this backend.
+  async createOrganizationUser(
+    organizationId: string,
+    data: { name: string; email: string; password: string; role: 'ADMIN' | 'STAFF' }
+  ): Promise<AuthResponse> {
+    return this.register({ ...data, organizationId })
+  }
+
+  async deactivateOrganizationUser(organizationId: string, userId: string, actingUserId: string) {
+    if (userId === actingUserId) {
+      throw new Error('You cannot deactivate your own account')
+    }
+
+    const target = await this.prisma.user.findUnique({ where: { id: userId } })
+
+    if (!target || target.organizationId !== organizationId) {
+      throw new Error('User not found in this organization')
+    }
+
+    if (target.role === Role.OWNER) {
+      throw new Error('Cannot deactivate the organization owner')
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false },
+      select: { id: true, name: true, email: true, role: true, isActive: true }
+    })
+
+    await this.logActivity(actingUserId, 'DEACTIVATE_ORG_USER', 'User', userId, { targetUser: user.email })
+
+    return user
+  }
+
   private generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
     return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions)
   }

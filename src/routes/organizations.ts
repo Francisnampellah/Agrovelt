@@ -135,6 +135,20 @@ export function createOrganizationRoutes(
     organizationController.getStock
   )
 
+  router.get(
+    '/organizations/:id/finance/summary',
+    authMiddleware.authenticate,
+    organizationController.financeQueryValidation,
+    organizationController.getFinanceSummary
+  )
+
+  router.get(
+    '/organizations/:id/finance/activity',
+    authMiddleware.authenticate,
+    organizationController.financeQueryValidation,
+    organizationController.getFinanceActivity
+  )
+
   router.post(
     '/organizations/:id/reports/generate',
     authMiddleware.authenticate,
@@ -319,6 +333,21 @@ export function createOrganizationRoutes(
  *               $ref: '#/components/schemas/Error'
  */
   router.put('/organizations/:id', authMiddleware.authenticate, authMiddleware.authorize('SUPER_ADMIN'), organizationController.updateValidation, organizationController.update)
+
+  // Docs for both routes below live in organization.swagger.ts, alongside
+  // every other /organizations/{id}/... sub-resource in this module.
+  router.patch(
+    '/organizations/:id/settings',
+    authMiddleware.authenticate,
+    organizationController.updateSettingsValidation,
+    organizationController.updateSettings
+  )
+
+  router.get(
+    '/organizations/:id/settings',
+    authMiddleware.authenticate,
+    organizationController.getSettings
+  )
 
   return router
 }

@@ -22,7 +22,7 @@ export function createNotificationModule(prisma: PrismaClient) {
     receiptService
   )
   const expenseService = new ExpenseService(prisma, cashFlowService)
-  const purchaseService = new PurchaseService(prisma, inventoryService, pricingService, cashFlowService)
+  const purchaseService = new PurchaseService(prisma, inventoryService, cashFlowService)
   const notificationService = new NotificationService(prisma)
   const notificationController = new NotificationController(notificationService, prisma)
 

@@ -26,6 +26,7 @@ test('STAFF receives 403 for organization sales reports', async () => {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
     {} as never
   )
   let statusCode: number | undefined

@@ -63,9 +63,20 @@ export class SaleService {
           }> = []
 
           for (const item of data.items) {
+            // A real price must already be on record somewhere (this
+            // batch, a shop override, or the variant default) before it can
+            // be sold at all - resolveSellingPrice throws if not, even when
+            // the caller also supplies a price, so a typed-in number can't
+            // stand in for a variant that was never actually priced.
+            const referencePrice = await this.pricingService.resolveSellingPrice(
+              data.shopId,
+              item.variantId,
+              item.inventoryId
+            )
+
             let price = item.price
             if (price === undefined) {
-              price = await this.pricingService.resolveSellingPrice(data.shopId, item.variantId)
+              price = referencePrice
             } else {
               await this.pricingService.validateSalePrice(data.shopId, item.variantId, price)
             }
@@ -192,7 +203,8 @@ export class SaleService {
       where: { shopId },
       include: {
         items: { include: { variant: { include: { product: true } } } },
-        payments: true
+        payments: true,
+        receipt: { select: { id: true, receiptNumber: true, status: true } }
       },
       orderBy: { createdAt: 'desc' }
     })

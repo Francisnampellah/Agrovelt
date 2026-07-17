@@ -5,7 +5,19 @@ import { BulkProductService } from './bulk-products.service'
 import { seedProductsFromFirebase } from './firebase-catalog-seed.service'
 import { parseExcelFile } from '../../utils/excelParser'
 import { generateProductTemplate, saveTemplate } from '../../utils/excelTemplateGenerator'
+import { AuthenticatedRequest } from '../auth/types'
 import { PrismaClient } from '@prisma/client'
+
+// source/mnyamaShopDocId claim provenance the client can't be trusted to set
+// arbitrarily (product/variant creation is open to any authenticated agrovet
+// user) — only the Mnyama Shop catalog sync path (run by an admin identity)
+// should be able to set them, so strip them from any other caller's body.
+function stripProvenanceFieldsUnlessAdmin(req: AuthenticatedRequest): void {
+  const role = req.user?.role
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return
+  delete req.body.source
+  delete req.body.mnyamaShopDocId
+}
 
 export class ProductController {
   constructor(
@@ -21,17 +33,58 @@ export class ProductController {
   productValidation = [
     body('name').trim().notEmpty().withMessage('Product name is required'),
     body('description').optional().trim(),
-    body('categoryId').optional().isUUID().withMessage('Invalid category ID'),
+    body('categoryId').optional({ nullable: true }).isUUID().withMessage('Invalid category ID'),
     body('unit').optional().isString(),
     body('dosageInfo').optional().isString(),
     body('manufacturer').optional().isString(),
-    body('isRestricted').optional().isBoolean()
+    body('isRestricted').optional().isBoolean(),
+    body('source').optional().isIn(['MNYAMA_SHOP', 'CUSTOM']).withMessage('Invalid source'),
+    body('mnyamaShopDocId').optional({ nullable: true }).isString()
+  ]
+
+  productUpdateValidation = [
+    body('name').optional().trim().notEmpty().withMessage('Product name cannot be empty'),
+    body('description').optional({ nullable: true }).trim(),
+    body('categoryId').optional({ nullable: true }).isUUID().withMessage('Invalid category ID'),
+    body('unit').optional({ nullable: true }).isString(),
+    body('dosageInfo').optional({ nullable: true }).isString(),
+    body('manufacturer').optional({ nullable: true }).isString(),
+    body('isRestricted').optional().isBoolean(),
+    body('source').optional().isIn(['MNYAMA_SHOP', 'CUSTOM']).withMessage('Invalid source'),
+    body('mnyamaShopDocId').optional({ nullable: true }).isString()
   ]
 
   variantValidation = [
     body('productId').isString().notEmpty().withMessage('Valid product ID is required'),
     body('name').trim().notEmpty().withMessage('Variant name is required'),
-    body('sku').trim().notEmpty().withMessage('SKU is required')
+    body('sku').optional({ checkFalsy: true }).trim(),
+    body('source').optional().isIn(['MNYAMA_SHOP', 'CUSTOM']).withMessage('Invalid source'),
+    body('defaultCostPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default cost price must be 0 or greater').toFloat(),
+    body('defaultSellingPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default selling price must be 0 or greater').toFloat()
+      .custom((value, { req }) => {
+        const costPrice = req.body.defaultCostPrice
+        if (value != null && costPrice != null && Number(value) < Number(costPrice)) {
+          throw new Error('Default selling price cannot be less than default cost price')
+        }
+        return true
+      }),
+    body('markupPercent').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Markup percent must be 0 or greater').toFloat()
+  ]
+
+  variantUpdateValidation = [
+    body('name').optional().trim().notEmpty().withMessage('Variant name cannot be empty'),
+    body('sku').optional().trim().notEmpty().withMessage('SKU cannot be empty'),
+    body('source').optional().isIn(['MNYAMA_SHOP', 'CUSTOM']).withMessage('Invalid source'),
+    body('defaultCostPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default cost price must be 0 or greater').toFloat(),
+    body('defaultSellingPrice').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Default selling price must be 0 or greater').toFloat()
+      .custom((value, { req }) => {
+        const costPrice = req.body.defaultCostPrice
+        if (value != null && costPrice != null && Number(value) < Number(costPrice)) {
+          throw new Error('Default selling price cannot be less than default cost price')
+        }
+        return true
+      }),
+    body('markupPercent').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Markup percent must be 0 or greater').toFloat()
   ]
 
   createCategory = async (req: Request, res: Response) => {
@@ -55,6 +108,27 @@ export class ProductController {
     }
   }
 
+  updateCategory = async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      const category = await this.productService.updateCategory(String(req.params.id), req.body)
+      res.json({ data: category })
+    } catch (error: any) {
+      res.status(error.message === 'Category not found' ? 404 : 400).json({ error: error.message })
+    }
+  }
+
+  deleteCategory = async (req: Request, res: Response) => {
+    try {
+      await this.productService.deleteCategory(String(req.params.id))
+      res.json({ message: 'Category deleted successfully' })
+    } catch (error: any) {
+      res.status(error.message === 'Category not found' ? 404 : 400).json({ error: error.message })
+    }
+  }
+
   createProduct = async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req)
@@ -66,6 +140,8 @@ export class ProductController {
         }
         return res.status(400).json({ errors: errors.array() })
       }
+
+      stripProvenanceFieldsUnlessAdmin(req)
 
       let imagePath: string | undefined
       let mimeType: string | undefined
@@ -84,6 +160,21 @@ export class ProductController {
         await fs.unlink((req as any).file.path).catch(() => {})
       }
       res.status(400).json({ error: error.message })
+    }
+  }
+
+  updateProduct = async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      stripProvenanceFieldsUnlessAdmin(req)
+
+      const product = await this.productService.updateProduct(String(req.params.id), req.body)
+      res.json({ data: product })
+    } catch (error: any) {
+      const status = error.message === 'Product not found' ? 404 : 400
+      res.status(status).json({ error: error.message })
     }
   }
 
@@ -148,10 +239,37 @@ export class ProductController {
       const errors = validationResult(req)
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
-      const variant = await this.productService.createVariant(req.body)
+      stripProvenanceFieldsUnlessAdmin(req)
+
+      const variant = await this.productService.createVariant(req.body, (req as AuthenticatedRequest).user?.role)
       res.status(201).json({ data: variant })
     } catch (error: any) {
       res.status(400).json({ error: error.message })
+    }
+  }
+
+  updateVariant = async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req)
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+
+      stripProvenanceFieldsUnlessAdmin(req)
+
+      const variant = await this.productService.updateVariant(String(req.params.id), req.body)
+      res.json({ data: variant })
+    } catch (error: any) {
+      const status = error.message === 'Variant not found' ? 404 : 400
+      res.status(status).json({ error: error.message })
+    }
+  }
+
+  deleteVariant = async (req: Request, res: Response) => {
+    try {
+      await this.productService.deleteVariant(String(req.params.id))
+      res.json({ message: 'Variant deleted successfully' })
+    } catch (error: any) {
+      const status = error.message === 'Variant not found' ? 404 : 400
+      res.status(status).json({ error: error.message })
     }
   }
 

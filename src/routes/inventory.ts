@@ -58,7 +58,7 @@ router.get('/inventory/shops/:shopId', authMiddleware.authenticate, inventoryCon
  * @swagger
  * /api/inventory/update:
  *   post:
- *     summary: Set inventory level (upsert)
+ *     summary: Set inventory level (upsert) for a specific variant batch
  *     tags: [Inventory]
  *     security:
  *       - bearerAuth: []
@@ -68,16 +68,19 @@ router.get('/inventory/shops/:shopId', authMiddleware.authenticate, inventoryCon
  *         application/json:
  *           schema:
  *             type: object
- *             required: [shopId, variantId, quantity, costPrice, sellingPrice]
+ *             required: [shopId, variantId, quantity, costPrice]
  *             properties:
  *               shopId: { type: string }
  *               variantId: { type: string }
- *               quantity: { type: integer }
- *               costPrice: { type: number }
- *               sellingPrice: { type: number }
+ *               batchNumber: { type: string, default: 'DEFAULT' }
+ *               quantity: { type: integer, minimum: 0 }
+ *               costPrice: { type: number, minimum: 0 }
+ *               expiryDate: { type: string, format: date-time }
  *     responses:
  *       200:
  *         description: Inventory updated
+ *       400:
+ *         description: Validation error or invalid inputs
  */
 router.post('/inventory/update', authMiddleware.authenticate, inventoryController.updateValidation, inventoryController.update)
 
@@ -85,10 +88,18 @@ router.post('/inventory/update', authMiddleware.authenticate, inventoryControlle
  * @swagger
  * /api/inventory/adjust:
  *   post:
- *     summary: Adjust inventory level and record transaction
+ *     summary: Adjust inventory level (increment or decrement) and record a transaction
  *     tags: [Inventory]
  *     security:
  *       - bearerAuth: []
+ *     description: |
+ *       change: 0 (with an existing batchNumber) is a price-only correction -
+ *       it updates costPrice/sellingPrice on that exact batch without moving
+ *       stock or logging a transaction row.
+ *
+ *       Positive changes for a MNYAMA_SHOP-sourced variant are rejected -
+ *       Mnyama Shop stock can only be added via a confirmed Mnyama Shop
+ *       purchase, not manual Stock In.
  *     requestBody:
  *       required: true
  *       content:
@@ -99,12 +110,17 @@ router.post('/inventory/update', authMiddleware.authenticate, inventoryControlle
  *             properties:
  *               shopId: { type: string }
  *               variantId: { type: string }
- *               change: { type: integer }
+ *               batchNumber: { type: string, default: 'DEFAULT' }
+ *               change: { type: integer, description: 'Positive to add stock, negative to remove, 0 for a price-only correction' }
  *               type: { type: string, enum: [PURCHASE, SALE, ADJUSTMENT, RETURN] }
  *               referenceId: { type: string }
+ *               costPrice: { type: number, description: 'Required and must be > 0 when change >= 0' }
+ *               sellingPriceOverride: { type: number, description: 'Sets the selling price for this batch directly instead of auto-calculating it from cost + markup' }
  *     responses:
  *       200:
  *         description: Inventory adjusted
+ *       400:
+ *         description: Validation error, insufficient stock, or attempted manual stock-in on a Mnyama Shop-sourced variant
  */
 router.post('/inventory/adjust', authMiddleware.authenticate, inventoryController.adjustValidation, inventoryController.adjust)
 
@@ -127,11 +143,105 @@ router.post('/inventory/adjust', authMiddleware.authenticate, inventoryControlle
  */
 router.get('/inventory/shops/:shopId/transactions', authMiddleware.authenticate, inventoryController.getTransactionsByShop)
 
+/**
+ * @swagger
+ * /api/inventory/bulk/template/update:
+ *   get:
+ *     summary: Download the Excel template for bulk inventory update
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Excel (.xlsx) template file
+ */
 router.get('/inventory/bulk/template/update', authMiddleware.authenticate, inventoryController.downloadInventoryUpdateTemplate)
+
+/**
+ * @swagger
+ * /api/inventory/bulk/template/adjust:
+ *   get:
+ *     summary: Download the Excel template for bulk inventory adjust
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Excel (.xlsx) template file
+ */
 router.get('/inventory/bulk/template/adjust', authMiddleware.authenticate, inventoryController.downloadInventoryAdjustTemplate)
 
+/**
+ * @swagger
+ * /api/inventory/bulk/update:
+ *   post:
+ *     summary: Bulk update inventory from an Excel file
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Upload an Excel file (.xlsx) with inventory update data.
+ *       Supports dry-run mode to validate without persisting.
+ *
+ *       Expected columns: shopId, variantId, batchNumber, quantity, costPrice, expiryDate
+ *     parameters:
+ *       - name: dryRun
+ *         in: query
+ *         required: false
+ *         schema: { type: boolean, default: false }
+ *         description: Validate without updating
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file: { type: string, format: binary, description: 'Excel file (.xlsx)' }
+ *     responses:
+ *       200:
+ *         description: Bulk update result
+ *       400:
+ *         description: Invalid file or validation errors
+ */
 router.post('/inventory/bulk/update', authMiddleware.authenticate, uploadExcel.single('file'), inventoryController.bulkUpdateInventory)
 
+/**
+ * @swagger
+ * /api/inventory/bulk/adjust:
+ *   post:
+ *     summary: Bulk adjust inventory from an Excel file
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Upload an Excel file (.xlsx) with inventory adjustment data.
+ *       Supports dry-run mode to validate without persisting.
+ *
+ *       Expected columns: shopId, variantId, batchNumber, change, type, referenceId, costPrice
+ *       Type must be one of: PURCHASE, SALE, ADJUSTMENT, RETURN
+ *     parameters:
+ *       - name: dryRun
+ *         in: query
+ *         required: false
+ *         schema: { type: boolean, default: false }
+ *         description: Validate without adjusting
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file: { type: string, format: binary, description: 'Excel file (.xlsx)' }
+ *     responses:
+ *       200:
+ *         description: Bulk adjust result
+ *       400:
+ *         description: Invalid file or validation errors
+ */
 router.post('/inventory/bulk/adjust', authMiddleware.authenticate, uploadExcel.single('file'), inventoryController.bulkAdjustInventory)
 
   return router

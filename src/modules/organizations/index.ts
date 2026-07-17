@@ -9,6 +9,7 @@ import { InventoryService } from '../inventory/inventory.service'
 import { PurchaseService } from '../purchase/purchase.service'
 import { SaleService } from '../sale/sale.service'
 import { ShopService } from '../shops/shop.service'
+import { CashFlowService } from '../cashflow/cashflow.service'
 import { OrganizationService } from './organization.service'
 import { OrganizationController } from './organization.controller'
 import { OrgUsersService } from './org-users.service'
@@ -29,6 +30,7 @@ export function createOrganizationModule(
 ) {
   const authService = new AuthService(prisma)
   const organizationService = new OrganizationService(prisma)
+  const cashFlowService = new CashFlowService(prisma)
   const orgUsersService = new OrgUsersService(prisma)
 
   const services = deps ?? {
@@ -46,7 +48,8 @@ export function createOrganizationModule(
     services.purchaseService,
     services.notificationService,
     services.inventoryService,
-    services.shopService
+    services.shopService,
+    cashFlowService
   )
   const orgUsersController = new OrgUsersController(orgUsersService, prisma)
 

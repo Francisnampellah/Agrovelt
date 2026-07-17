@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma, InventoryTxnType } from '@prisma/client'
 import { UpdateInventoryRequest, AdjustInventoryRequest } from './types'
+import { computeSellingPriceFromMarkup } from '../../utils/pricing'
 
 type TxClient = Prisma.TransactionClient
 
@@ -109,6 +110,34 @@ export class InventoryService {
     await this.assertSameOrg(data.shopId, [data.variantId], tx)
     const db = this.db(tx)
 
+    const variant = await db.productVariant.findUnique({
+      where: { id: data.variantId },
+      select: { source: true, markupPercent: true }
+    })
+    if (!variant) throw new Error(`Product variant ${data.variantId} not found`)
+
+    let markupPercent = variant.markupPercent
+
+    if (markupPercent == null && variant.source === 'MNYAMA_SHOP') {
+      // No per-variant markup - fall back to the org's default, but only
+      // for Mnyama Shop items (auto-added via a purchase, never a manual
+      // Stock In, so they'd otherwise silently resell at cost).
+      const shop = await db.shop.findUnique({
+        where: { id: data.shopId },
+        select: { organizationId: true }
+      })
+      const org = shop
+        ? await db.organization.findUnique({
+            where: { id: shop.organizationId },
+            select: { defaultMarkupPercent: true }
+          })
+        : null
+      markupPercent = org?.defaultMarkupPercent ?? null
+    }
+
+    const sellingPrice =
+      markupPercent != null ? computeSellingPriceFromMarkup(data.costPrice, markupPercent) : undefined
+
     await db.inventory.upsert({
       where: {
         shopId_variantId_batchNumber: {
@@ -120,6 +149,7 @@ export class InventoryService {
       update: {
         quantity: { increment: data.quantity },
         costPrice: data.costPrice,
+        ...(sellingPrice !== undefined ? { sellingPrice } : {}),
         ...(data.expiryDate && { expiryDate: data.expiryDate })
       },
       create: {
@@ -128,6 +158,7 @@ export class InventoryService {
         batchNumber: data.batchNumber,
         quantity: data.quantity,
         costPrice: data.costPrice,
+        ...(sellingPrice !== undefined ? { sellingPrice } : {}),
         ...(data.expiryDate && { expiryDate: data.expiryDate })
       }
     })
@@ -325,13 +356,19 @@ export class InventoryService {
     })
   }
 
-  async adjustInventory(data: AdjustInventoryRequest & { costPrice?: number }, tx?: TxClient) {
+  async adjustInventory(data: AdjustInventoryRequest, tx?: TxClient) {
+    if (tx) {
+      await this.performAdjustInventory(data, tx)
+    } else {
+      await this.prisma.$transaction((innerTx) => this.performAdjustInventory(data, innerTx))
+    }
+  }
+
+  private async performAdjustInventory(data: AdjustInventoryRequest, tx: TxClient) {
     const { shopId, variantId, batchNumber = 'DEFAULT', change, type, referenceId, costPrice } = data
-    
-    const db = this.db(tx)
 
     if (change < 0) {
-      const result = await db.inventory.updateMany({
+      const result = await tx.inventory.updateMany({
         where: {
           shopId,
           variantId,
@@ -344,36 +381,69 @@ export class InventoryService {
         throw new Error(`Insufficient inventory for variant ${variantId} and batch ${batchNumber}`)
       }
     } else {
-      if (costPrice === undefined || costPrice <= 0) {
-        throw new Error('costPrice is required and must be > 0 for positive adjustments')
+      const variant = await tx.productVariant.findUnique({
+        where: { id: variantId },
+        select: { source: true, markupPercent: true }
+      })
+      if (!variant) throw new Error(`Product variant ${variantId} not found`)
+
+      // Only blocks actual additions (change > 0) - change === 0 (a price-only
+      // correction via the "Edit price" action) is still allowed for an
+      // existing Mnyama batch. Adding stock is only ever allowed via a real
+      // purchase (receivePurchaseBatch), synced from a confirmed Mnyama
+      // Shop order - never through manual Stock In.
+      if (change > 0 && variant.source === 'MNYAMA_SHOP') {
+        throw new Error(
+          'Mnyama Shop products can only be added to inventory by purchasing them from Mnyama Shop, not via manual Stock In'
+        )
       }
-      await db.inventory.upsert({
+
+      if (costPrice === undefined || costPrice <= 0) {
+        throw new Error('costPrice is required and must be > 0 for non-negative adjustments')
+      }
+
+      const sellingPrice =
+        data.sellingPriceOverride !== undefined
+          ? data.sellingPriceOverride
+          : variant.markupPercent != null
+            ? computeSellingPriceFromMarkup(costPrice, variant.markupPercent)
+            : undefined
+
+      await tx.inventory.upsert({
         where: {
           shopId_variantId_batchNumber: { shopId, variantId, batchNumber }
         },
         update: {
-          quantity: { increment: change }
+          quantity: { increment: change },
+          costPrice: costPrice,
+          ...(sellingPrice !== undefined ? { sellingPrice } : {})
         },
         create: {
           shopId,
           variantId,
           batchNumber,
           quantity: change,
-          costPrice: costPrice
+          costPrice: costPrice,
+          ...(sellingPrice !== undefined ? { sellingPrice } : {})
         }
       })
     }
 
-    await db.inventoryTransaction.create({
-      data: {
-        shopId,
-        variantId,
-        batchNumber,
-        type: type ?? InventoryTxnType.ADJUSTMENT,
-        quantity: change,
-        referenceId: referenceId ?? null
-      }
-    })
+    // change === 0 means this call is a price-only correction (see
+    // AgrovetShopInventoryPage's "Edit price" action) - no stock actually
+    // moved, so there's nothing to log in the transaction ledger.
+    if (change !== 0) {
+      await tx.inventoryTransaction.create({
+        data: {
+          shopId,
+          variantId,
+          batchNumber,
+          type: type ?? InventoryTxnType.ADJUSTMENT,
+          quantity: change,
+          referenceId: referenceId ?? null
+        }
+      })
+    }
   }
 
   async getInventoryByShop(shopId: string) {

@@ -37,4 +37,3 @@ export function createSaleModule(
 
 export { SaleService, SaleController }
 export * from './types'
-export * from './sale.swagger'

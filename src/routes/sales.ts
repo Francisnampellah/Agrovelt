@@ -22,6 +22,12 @@ export function createSaleRoutes(
    *       - bearerAuth: []
    *     description: |
    *       Record a sale using the global product catalog. Any shop can sell any product variant in stock.
+   *
+   *       Every item must resolve to a real, previously-determined selling
+   *       price (the specific batch's own price, a shop override, or the
+   *       variant's default) before it can be sold - checked even when the
+   *       request supplies its own price. An item with no price set
+   *       anywhere is rejected.
    *     requestBody:
    *       required: true
    *       content:
@@ -60,6 +66,7 @@ export function createSaleRoutes(
  *                       type: integer
  *                     price:
  *                       type: number
+ *                       description: Optional. When provided, still validated against a resolvable reference price and any minSellingPrice floor - it does not bypass pricing checks.
  *                     batchNumber:
  *                       type: string
  *                     batch:
@@ -69,7 +76,7 @@ export function createSaleRoutes(
    *       201:
    *         description: Sale created
    *       400:
-   *         description: Invalid input or insufficient stock
+   *         description: Invalid input, insufficient stock, or an item has no resolvable selling price
    */
   router.post(
     '/sales',

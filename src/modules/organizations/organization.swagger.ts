@@ -288,6 +288,114 @@
  *       200:
  *         description: Inventory transactions
  *
+ * /api/organizations/{id}/finance/summary:
+ *   get:
+ *     tags: [Organizations, CashFlow]
+ *     summary: Category-level cash flow rollup for an organization
+ *     security: [{ bearerAuth: [] }]
+ *     description: |
+ *       Revenue, expenses, purchases, and refunds across every shop in the
+ *       organization (or a specific subset via shopIds), for the given date
+ *       range. Omitting from/to returns an all-time total. Supplying both
+ *       enforces a 24-hour minimum span and a 3-month lookback limit.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - name: from
+ *         in: query
+ *         schema: { type: string, format: date-time }
+ *       - name: to
+ *         in: query
+ *         schema: { type: string, format: date-time }
+ *       - name: shopIds
+ *         in: query
+ *         schema: { type: string }
+ *         description: Comma-separated shop UUIDs. Omit for the whole organization.
+ *     responses:
+ *       200:
+ *         description: Finance summary
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalRevenue: { type: number }
+ *                     salesCount: { type: integer }
+ *                     totalExpenses: { type: number }
+ *                     expenseCount: { type: integer }
+ *                     totalPurchases: { type: number }
+ *                     purchaseCount: { type: integer }
+ *                     totalRefunds: { type: number }
+ *                     refundCount: { type: integer }
+ *                     netEstimate: { type: number }
+ *                     stockUnitsOnHand: { type: integer }
+ *                     lowStockCount: { type: integer }
+ *       400:
+ *         description: Invalid date range (span under 24h, more than 3 months back, or in the future)
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Organization not found
+ *
+ * /api/organizations/{id}/finance/activity:
+ *   get:
+ *     tags: [Organizations, CashFlow]
+ *     summary: Cash flow activity feed for an organization
+ *     security: [{ bearerAuth: [] }]
+ *     description: |
+ *       Individual cash flow entries across every shop in the organization
+ *       (or a specific subset via shopIds), newest first. Same date-range
+ *       rules as finance/summary.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - name: from
+ *         in: query
+ *         schema: { type: string, format: date-time }
+ *       - name: to
+ *         in: query
+ *         schema: { type: string, format: date-time }
+ *       - name: shopIds
+ *         in: query
+ *         schema: { type: string }
+ *         description: Comma-separated shop UUIDs. Omit for the whole organization.
+ *       - name: take
+ *         in: query
+ *         schema: { type: integer, default: 20 }
+ *     responses:
+ *       200:
+ *         description: Cash flow entries, each including its shop
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     allOf:
+ *                       - $ref: '#/components/schemas/CashFlowEntry'
+ *                       - type: object
+ *                         properties:
+ *                           shop:
+ *                             type: object
+ *                             properties:
+ *                               id: { type: string, format: uuid }
+ *                               name: { type: string }
+ *       400:
+ *         description: Invalid date range
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Organization not found
+ *
  * /api/organizations/{id}/users:
  *   post:
  *     tags: [Organizations, Users]
@@ -309,7 +417,7 @@
  *               name: { type: string }
  *               email: { type: string, format: email }
  *               password: { type: string, minLength: 8 }
- *               phoneNumber: { type: string, minLength: 9, description: Written to Firestore users/{uid}.phone_no }
+ *               phoneNumber: { type: string, minLength: 9, description: "Written to Firestore users/{uid}.phone_no" }
  *               role: { type: string, enum: [STAFF, MANAGER] }
  *               managerAccess: { type: string, enum: [ONE_SHOP, ALL_SHOPS] }
  *               shopId: { type: string, format: uuid }
@@ -395,4 +503,50 @@
  *         description: Insufficient permissions
  *       404:
  *         description: User not found
+ *
+ * /api/organizations/{id}/settings:
+ *   get:
+ *     tags: [Organizations]
+ *     summary: Get an organization's self-service settings
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Organization settings
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Organization not found
+ *   patch:
+ *     tags: [Organizations]
+ *     summary: Update an organization's self-service settings
+ *     description: |
+ *       Unlike PUT /organizations/{id} (platform SUPER_ADMIN only), this is
+ *       reachable by the organization's own OWNER (or a platform admin) and
+ *       only ever touches settings fields - never name/slug/email.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               defaultMarkupPercent: { type: number, nullable: true, description: 'Fallback markup applied when a variant has no markupPercent of its own' }
+ *     responses:
+ *       200:
+ *         description: Organization settings updated
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Organization not found
  */

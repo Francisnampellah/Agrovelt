@@ -60,6 +60,10 @@ export function createProductRoutes(prisma: PrismaClient) {
  *                     properties:
  *                       id: { type: string, format: uuid }
  *                       name: { type: string }
+ *                       _count:
+ *                         type: object
+ *                         properties:
+ *                           products: { type: integer, description: 'How many products reference this category - a non-zero count blocks delete' }
  *       401:
  *         description: Authentication required
  *         content:
@@ -77,6 +81,10 @@ router.get('/categories', authMiddleware.authenticate, productController.getAllC
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
+ *     description: |
+ *       SUPER_ADMIN/ADMIN only. Rejects a name that already matches an
+ *       existing category (case-insensitive) instead of creating a
+ *       duplicate.
  *     requestBody:
  *       required: true
  *       content:
@@ -103,13 +111,98 @@ router.get('/categories', authMiddleware.authenticate, productController.getAllC
  *                     id: { type: string, format: uuid }
  *                     name: { type: string }
  *       400:
- *         description: Invalid input
+ *         description: Invalid input, or a category with this name already exists
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Insufficient permissions
  */
-router.post('/categories', authMiddleware.authenticate, productController.categoryValidation, productController.createCategory)
+router.post(
+  '/categories',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.categoryValidation,
+  productController.createCategory
+)
+
+/**
+ * @swagger
+ * /api/categories/{id}:
+ *   patch:
+ *     summary: Rename a product category
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     description: SUPER_ADMIN/ADMIN only. Same case-insensitive uniqueness check as create.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name: { type: string, minLength: 1 }
+ *     responses:
+ *       200:
+ *         description: Category renamed
+ *       400:
+ *         description: Invalid input, or a category with this name already exists
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Category not found
+ */
+router.patch(
+  '/categories/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.categoryValidation,
+  productController.updateCategory
+)
+
+/**
+ * @swagger
+ * /api/categories/{id}:
+ *   delete:
+ *     summary: Delete a product category
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       SUPER_ADMIN/ADMIN only. Rejected if any Agrovet Product still
+ *       references this category - check the _count.products field from
+ *       GET /api/categories before offering delete in a UI. Does not (and
+ *       cannot) check Mnyama Shop Firestore products, which store a
+ *       category name string rather than a reference to this row.
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Category deleted
+ *       400:
+ *         description: Category is still assigned to one or more products
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Category not found
+ */
+router.delete(
+  '/categories/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.deleteCategory
+)
 
 /**
  * @swagger
@@ -273,7 +366,65 @@ router.get('/products/:id', authMiddleware.authenticate, productController.getPr
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/products', authMiddleware.authenticate, productController.productValidation, productController.createProduct)
+router.post(
+  '/products',
+  authMiddleware.authenticate,
+  productController.productValidation,
+  productController.createProduct
+)
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   patch:
+ *     summary: Update a product
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               description: { type: string, nullable: true }
+ *               categoryId: { type: string, format: uuid, nullable: true }
+ *               unit: { type: string, nullable: true }
+ *               dosageInfo: { type: string, nullable: true }
+ *               manufacturer: { type: string, nullable: true }
+ *               isRestricted: { type: boolean }
+ *     responses:
+ *       200:
+ *         description: Product updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/Product'
+ *       400:
+ *         description: Invalid input or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Product not found
+ */
+router.patch(
+  '/products/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.productUpdateValidation,
+  productController.updateProduct
+)
 
 /**
  * @swagger
@@ -336,7 +487,7 @@ router.post('/products/:id/image', authMiddleware.authenticate, uploadProductIma
  * @swagger
  * /api/products/{id}:
  *   delete:
- *     summary: Delete a product
+ *     summary: Delete a product and all of its variants
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -346,10 +497,15 @@ router.post('/products/:id/image', authMiddleware.authenticate, uploadProductIma
  *         required: true
  *         schema: { type: string, format: uuid }
  *         description: Product UUID
- *     description: Delete a product and its associated image file from storage.
+ *     description: |
+ *       Deletes the product together with every one of its variants, plus
+ *       the product's image file. Every variant is checked for existing
+ *       usage (inventory, pricing, purchases, sales, transfers) first — if
+ *       any variant is in use, nothing is deleted and the request fails
+ *       with a 400 listing which variant(s) blocked it.
  *     responses:
  *       200:
- *         description: Product deleted successfully
+ *         description: Product and all its variants deleted successfully
  *         content:
  *           application/json:
  *             schema:
@@ -358,6 +514,12 @@ router.post('/products/:id/image', authMiddleware.authenticate, uploadProductIma
  *                 message:
  *                   type: string
  *                   example: Product deleted successfully
+ *       400:
+ *         description: One or more variants are already in use — nothing was deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Product not found
  *         content:
@@ -365,7 +527,12 @@ router.post('/products/:id/image', authMiddleware.authenticate, uploadProductIma
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete('/products/:id', authMiddleware.authenticate, productController.deleteProduct)
+router.delete(
+  '/products/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.deleteProduct
+)
 
 /**
  * @swagger
@@ -377,14 +544,23 @@ router.delete('/products/:id', authMiddleware.authenticate, productController.de
  *       - bearerAuth: []
  *     description: |
  *       Create a product variant (size/package option).
- *       SKU must be globally unique across the system.
+ *       SKU must be globally unique across the system. If omitted, a SKU is
+ *       generated automatically from the product and variant names.
+ *
+ *       If markupPercent is set, defaultSellingPrice is computed server-side
+ *       as defaultCostPrice * (1 + markupPercent / 100) - any
+ *       defaultSellingPrice sent in the request is ignored in that case.
+ *
+ *       A non-admin actor cannot add a variant under a product whose
+ *       source is MNYAMA_SHOP - that catalog is owned by the Mnyama Shop
+ *       sync, not editable from the Agrovet dashboard.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [productId, name, sku]
+ *             required: [productId, name]
  *             properties:
  *               productId:
  *                 type: string
@@ -397,8 +573,20 @@ router.delete('/products/:id', authMiddleware.authenticate, productController.de
  *               sku:
  *                 type: string
  *                 minLength: 1
- *                 description: Stock Keeping Unit - must be unique globally
+ *                 description: Stock Keeping Unit - must be unique globally. Auto-generated when omitted.
  *                 example: SKU-001-1KG
+ *               defaultCostPrice:
+ *                 type: number
+ *                 nullable: true
+ *                 example: 9000
+ *               defaultSellingPrice:
+ *                 type: number
+ *                 nullable: true
+ *                 example: 12000
+ *               markupPercent:
+ *                 type: number
+ *                 nullable: true
+ *                 example: 20
  *     responses:
  *       201:
  *         description: Variant created successfully
@@ -414,15 +602,118 @@ router.delete('/products/:id', authMiddleware.authenticate, productController.de
  *                     productId: { type: string, format: uuid }
  *                     name: { type: string }
  *                     sku: { type: string }
+ *                     defaultCostPrice: { type: number, nullable: true }
+ *                     defaultSellingPrice: { type: number, nullable: true }
+ *                     markupPercent: { type: number, nullable: true }
  *                     createdAt: { type: string, format: date-time }
  *       400:
- *         description: Invalid input or SKU already exists
+ *         description: Invalid input, SKU already exists, or (non-admin actor) the parent product is Mnyama Shop-sourced
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/variants', authMiddleware.authenticate, productController.variantValidation, productController.createVariant)
+router.post(
+  '/variants',
+  authMiddleware.authenticate,
+  productController.variantValidation,
+  productController.createVariant
+)
+
+/**
+ * @swagger
+ * /api/variants/{id}:
+ *   patch:
+ *     summary: Update a product variant
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               sku:
+ *                 type: string
+ *                 description: Stock Keeping Unit - must be unique globally
+ *               defaultCostPrice: { type: number, nullable: true }
+ *               defaultSellingPrice:
+ *                 type: number
+ *                 nullable: true
+ *                 description: Must not be less than defaultCostPrice
+ *               markupPercent: { type: number, nullable: true }
+ *     responses:
+ *       200:
+ *         description: Variant updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/ProductVariant'
+ *       400:
+ *         description: Invalid input, SKU already exists, or selling price below cost price
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Variant not found
+ *
+ *   delete:
+ *     summary: Delete a product variant
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Blocked if this is the product's last remaining variant, or if the
+ *       variant is referenced by inventory, purchases, sales, transfers, or
+ *       price history.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Variant deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: Variant deleted successfully }
+ *       400:
+ *         description: Cannot delete the last variant, or a variant already in use
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Variant not found
+ */
+router.patch(
+  '/variants/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.variantUpdateValidation,
+  productController.updateVariant
+)
+
+router.delete(
+  '/variants/:id',
+  authMiddleware.authenticate,
+  authMiddleware.authorize('SUPER_ADMIN', 'ADMIN'),
+  productController.deleteVariant
+)
 
 /**
  * @swagger

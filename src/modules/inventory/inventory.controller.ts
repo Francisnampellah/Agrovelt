@@ -27,9 +27,15 @@ export class InventoryController {
   adjustValidation = [
     body('shopId').isUUID().withMessage('Invalid shop ID'),
     body('variantId').isString().notEmpty().withMessage('Invalid variant ID'),
+    body('batchNumber').optional().isString().notEmpty().withMessage('Invalid batch number'),
     body('change').isInt().withMessage('Change must be an integer'),
     body('type').isIn(['PURCHASE', 'SALE', 'ADJUSTMENT', 'RETURN']).withMessage('Invalid transaction type'),
-    body('referenceId').optional().isString()
+    body('referenceId').optional().isString(),
+    body('costPrice').optional().isFloat({ min: 0 }).withMessage('Cost price must be >= 0'),
+    body('sellingPriceOverride')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('Selling price override must be >= 0')
   ]
 
   update = async (req: AuthenticatedRequest, res: Response) => {
@@ -51,7 +57,10 @@ export class InventoryController {
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
       await this.assertStockAccess(req, [String(req.body.shopId)])
-      const inventory = await this.inventoryService.adjustInventory(req.body)
+      const inventory = await this.inventoryService.adjustInventory({
+        ...req.body,
+        changedBy: req.user?.userId
+      })
       res.json({ data: inventory })
     } catch (error: any) {
       res.status(this.errorStatus(error)).json({ error: error.message })

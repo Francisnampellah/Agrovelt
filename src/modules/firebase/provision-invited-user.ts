@@ -77,7 +77,10 @@ export async function provisionInvitedFirebaseUser(
       email: input.email,
       password: input.password,
       displayName: input.displayName,
-      emailVerified: true,
+      // Invited users go through the same email-verification step as
+      // everyone else - onboarding stages are pre-marked complete (below),
+      // but proving ownership of the email isn't skipped.
+      emailVerified: false,
       disabled: false
     })
     uid = created.uid

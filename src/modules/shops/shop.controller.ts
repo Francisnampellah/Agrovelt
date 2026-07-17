@@ -15,12 +15,22 @@ export class ShopController {
     body('location').optional().trim().isLength({ max: 255 }).withMessage('Location too long'),
     body('ownerId').notEmpty().isUUID().withMessage('Valid owner ID is required'),
     body('organizationId').notEmpty().isUUID().withMessage('Valid organization ID is required'),
-    body('parentId').optional().isUUID().withMessage('Valid parent shop ID is required')
+    body('parentId').optional().isUUID().withMessage('Valid parent shop ID is required'),
+    body('region').trim().notEmpty().withMessage('Region is required'),
+    body('country').trim().notEmpty().withMessage('Country is required'),
+    body('district').trim().notEmpty().withMessage('District is required'),
+    body('streetAddress').trim().notEmpty().withMessage('Street address is required'),
+    body('phoneNumber').trim().notEmpty().withMessage('Phone number is required')
   ]
 
   updateShopValidation = [
     body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
-    body('location').optional().trim().isLength({ max: 255 }).withMessage('Location too long')
+    body('location').optional().trim().isLength({ max: 255 }).withMessage('Location too long'),
+    body('region').optional().trim().notEmpty().withMessage('Region cannot be empty'),
+    body('country').optional().trim().notEmpty().withMessage('Country cannot be empty'),
+    body('district').optional().trim().notEmpty().withMessage('District cannot be empty'),
+    body('streetAddress').optional().trim().notEmpty().withMessage('Street address cannot be empty'),
+    body('phoneNumber').optional().trim().notEmpty().withMessage('Phone number cannot be empty')
   ]
 
   create = async (req: Request, res: Response) => {
