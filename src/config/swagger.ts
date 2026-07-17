@@ -1,4 +1,7 @@
+import path from 'path'
+
 export function getSwaggerConfig(port: number | string) {
+  const root = process.cwd()
   return {
     definition: {
       openapi: '3.0.0',
@@ -273,8 +276,10 @@ export function getSwaggerConfig(port: number | string) {
       ],
     },
     apis: [
-      './src/routes/*.ts',
-      './src/modules/**/*.swagger.ts'
+      path.join(root, 'src/routes/*.ts'),
+      path.join(root, 'src/modules/**/*.swagger.ts'),
+      // Explicit include so Reports always appear even if glob misses nested files
+      path.join(root, 'src/modules/reports/report.swagger.ts')
     ],
   }
 }

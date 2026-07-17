@@ -149,6 +149,102 @@ export function createOrganizationRoutes(
     organizationController.getFinanceActivity
   )
 
+  /**
+   * @swagger
+   * /api/organizations/{id}/reports/generate:
+   *   post:
+   *     tags: [Reports, Organizations]
+   *     summary: Generate a customizable business report
+   *     description: |
+   *       Computes and persists a scoped business report.
+   *       STAFF is forbidden. Omitted shopIds resolves to the caller's shop scope.
+   *       False include sections are omitted from the response.
+   *     security: [{ bearerAuth: [] }]
+   *     parameters:
+   *       - name: id
+   *         in: path
+   *         required: true
+   *         schema: { type: string, format: uuid }
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/GenerateBusinessReportRequest'
+   *     responses:
+   *       201:
+   *         description: Report generated and persisted
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   $ref: '#/components/schemas/BusinessReportPayload'
+   *       400:
+   *         description: Validation failed
+   *       403:
+   *         description: STAFF or shop out of scope
+   *       404:
+   *         description: Organization not found
+   *       422:
+   *         description: Range too large or no shops in scope
+   *
+   * /api/organizations/{id}/reports:
+   *   get:
+   *     tags: [Reports, Organizations]
+   *     summary: List recent business reports
+   *     security: [{ bearerAuth: [] }]
+   *     parameters:
+   *       - name: id
+   *         in: path
+   *         required: true
+   *         schema: { type: string, format: uuid }
+   *       - name: limit
+   *         in: query
+   *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+   *     responses:
+   *       200:
+   *         description: Recent report metadata
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/BusinessReportListItem'
+   *       403:
+   *         description: Insufficient permissions
+   *
+   * /api/organizations/{id}/reports/{reportId}:
+   *   get:
+   *     tags: [Reports, Organizations]
+   *     summary: Fetch a previously generated business report
+   *     security: [{ bearerAuth: [] }]
+   *     parameters:
+   *       - name: id
+   *         in: path
+   *         required: true
+   *         schema: { type: string, format: uuid }
+   *       - name: reportId
+   *         in: path
+   *         required: true
+   *         schema: { type: string, format: uuid }
+   *     responses:
+   *       200:
+   *         description: Stored report payload
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   $ref: '#/components/schemas/BusinessReportPayload'
+   *       404:
+   *         description: Report not found
+   */
   router.post(
     '/organizations/:id/reports/generate',
     authMiddleware.authenticate,
