@@ -199,6 +199,8 @@ npx prisma db push         # Push schema changes (development)
 docker-compose -f docker-compose.yml up -d
 ```
 
+The Docker startup flow now detects whether the database has Prisma migration history. Fresh or unbaselined dev databases are bootstrapped with `prisma db push --accept-data-loss`; databases with migration history use `prisma migrate deploy` before seeding and starting the API.
+
 ### Environment Configuration
 
 For production, ensure:
